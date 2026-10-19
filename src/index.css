@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@keyframes pop-in {
+  from {
+    transform: scale(0.97);
+    opacity: 0.4;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-pop-in {
+  animation: pop-in 160ms ease-out;
+}
+
+body {
+  @apply bg-slate-100 text-slate-900 antialiased;
+}

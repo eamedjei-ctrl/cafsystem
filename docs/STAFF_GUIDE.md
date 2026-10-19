@@ -1,0 +1,95 @@
+# Staff guide
+
+## Roles at a glance
+
+| | Check-in staff | Supervisor | Administrator |
+| --- | :-: | :-: | :-: |
+| Check students in, manual lookup | ✓ | ✓ | ✓ |
+| View and search meal records | | ✓ | ✓ |
+| Export CSV | | ✓ | ✓ |
+| Correct records (edit, void, restore, add missed) | | ✓ | ✓ |
+| View students and the audit log | | ✓ | ✓ |
+| Add, edit or import students | | | ✓ |
+| Manage staff accounts and roles | | | ✓ |
+
+## Cafeteria staff: running the check-in screen
+
+1. Sign in on the tablet. The check-in screen opens.
+2. Check that the right **meal period** is highlighted at the top. The app selects it from the
+   time of day and shows a blue bar offering to switch when the next period starts. Tap a period
+   to change it.
+3. Students scan their ID card. Watch or listen for the result:
+
+| Screen | Sound | Meaning | What to do |
+| --- | --- | --- | --- |
+| **Green** with the student's name | one high beep | Meal recorded | Serve the student |
+| **Amber** "Already served" | two beeps | This student already checked in for this meal today. The time of the first check-in is shown. Nothing new was recorded. | Follow school policy for second servings |
+| **Red** "ID not recognised" | low tone | No student has this ID | Try again, or use Manual lookup. The card may be damaged or the student may not be in the roster. |
+| **Red** "Inactive record" | low tone | The student is marked inactive | Refer the student to the office |
+| **Red** "Invalid ID" | low tone | The scan was not a valid ID (misread or wrong barcode) | Scan again |
+| **Red** "Check-in failed" or "No connection" | low tone | The meal was **not** recorded | Fix the connection and scan again |
+
+   The result clears automatically after a few seconds, or when you tap it.
+4. **No card or the card won't scan?** Tap **Manual lookup**, type at least two letters of the
+   name or ID, and tap **Check in** next to the right student. Check the class shown, because
+   names can repeat.
+5. The **served** counter shows how many students have checked in for this period today, across
+   all devices. The right-hand list shows recent scans on this tablet only.
+6. If the red **Offline** bar appears, check-ins cannot be recorded. Keep a paper list of names and
+   ask a supervisor to add them afterwards with **Add missed record**.
+
+Tips: tap **Full screen** at the start of service. A card held under the scanner or a scanner that
+fires twice is ignored for 3 seconds, so it won't show a false "already served".
+
+## Supervisors: records, corrections and export
+
+- **Meal records** shows today's records by default. Use the filters for dates, meal period, class,
+  student name or ID, and status (served or voided). The tiles show totals per period.
+- **Export CSV** downloads every record that matches the current filters, not just the visible
+  page. The file opens in Excel or Google Sheets.
+- **Edit** changes a record's meal period or date, for example when the tablet was left on
+  Breakfast during Lunch.
+- **Void** cancels a record that should not exist, such as a wrong card or a test scan. The record
+  is kept for the audit trail but is no longer counted. The student can then be checked in again.
+- **Restore** un-voids a record. It is refused if the student has checked in again since.
+- **Add missed record** adds a meal for a student who was served but not checked in.
+- Every correction requires a **reason**, which is stored permanently with your name in the
+  **Audit log**.
+
+## Administrators
+
+### Adding staff
+
+1. In the Supabase dashboard, go to Authentication → Users → **Invite user** and enter their email.
+2. They set a password from the invitation email and sign in. They see "Account not set up yet".
+3. On the **Staff** page, choose their role. Give each person the lowest role they need. The
+   cafeteria tablet should use a dedicated **Check-in staff** account.
+
+When someone leaves, click **Deactivate** on the Staff page. They immediately lose access to all
+data. The app always keeps at least one active administrator.
+
+### Importing the roster
+
+1. Export the student list from the school's information system as a CSV with these columns:
+
+   | Column | Required | Notes |
+   | --- | --- | --- |
+   | `student_id` | yes | Exactly what the ID card's barcode/QR encodes. 1–32 letters, digits, `-` or `_`. Not case-sensitive. |
+   | `first_name` | yes | |
+   | `last_name` | yes | `surname` is also accepted |
+   | `class` | no | Homeroom, form or grade. `grade`/`form`/`homeroom` headers also work. |
+   | `active` | no | `yes`/`no` (default yes) |
+
+   Do not include any other personal data. Extra columns are ignored and never uploaded.
+   A template is available from the import dialog. `docs/sample-roster.csv` is a fictional example.
+2. Go to **Students → Import roster CSV** and choose the file. Every row is checked first. If any
+   row has a problem (missing name, bad ID, duplicate ID), the file is listed with line numbers
+   and nothing is imported.
+3. Click **Import**. Students are matched by `student_id`: new IDs are added, and existing ones are
+   updated (name, class, active).
+4. Students who are **not** in the file are left unchanged. To remove leavers, include them with
+   `active` set to `no`, or deactivate them on the Students page. Students are never deleted, so
+   meal history is preserved.
+
+Re-importing the same file is safe. Unchanged students are reported as "unchanged" and do not
+create audit entries.
