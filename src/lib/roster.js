@@ -3,7 +3,10 @@ import { isValidStudentCode, normalizeStudentCode } from './studentCode'
 
 /**
  * Roster CSV import. Expected header row (case-insensitive, any order):
- *   student_id, first_name, last_name, class, active (optional)
+ *   student_id, first_name, last_name, class, plan (optional), active (optional)
+ * "plan" accepts a plan code or name (e.g. "twice", "Twice a day") or the
+ * number of meals per day ("1", "2", "3"). Leave the column out to keep each
+ * student's current plan; leave a cell blank to clear that student's plan.
  * Common alternative header names are accepted (see HEADER_ALIASES).
  */
 const HEADER_ALIASES = {
@@ -12,6 +15,7 @@ const HEADER_ALIASES = {
   last_name: ['last_name', 'lastname', 'last name', 'surname', 'family_name', 'family name'],
   class_name: ['class', 'class_name', 'classname', 'form', 'grade', 'homeroom'],
   active: ['active', 'status', 'enrolled'],
+  plan_code: ['plan', 'plan_code', 'feeding_plan', 'feeding plan', 'meal_plan', 'meal plan', 'meals_per_day', 'meals per day', 'section'],
 }
 
 const TRUE_VALUES = ['', 'true', 'yes', 'y', '1', 'active', 'enrolled']
@@ -33,7 +37,19 @@ function mapHeaders(header) {
  * errors are { line, message } (line numbers match the file, header = line 1).
  * Nothing should be imported while errors is non-empty.
  */
-export function parseRoster(text) {
+/** Map a CSV plan value to a plan code. Returns undefined if it matches nothing. */
+export function resolvePlan(value, plans) {
+  const v = value.trim().toLowerCase()
+  if (v === '' || v === 'none') return null
+  const byCodeOrLabel = plans.find((p) => p.code === v || p.label.toLowerCase() === v)
+  if (byCodeOrLabel) return byCodeOrLabel.code
+  const words = { once: 1, twice: 2, thrice: 3, '1': 1, '2': 2, '3': 3 }
+  const n = words[v] ?? words[v.replace(/\s*(a day|per day|times?|x)$/, '')]
+  const byCount = plans.filter((p) => p.meals_per_day === n)
+  return byCount.length === 1 ? byCount[0].code : undefined
+}
+
+export function parseRoster(text, plans = []) {
   const table = parseCsv(text)
   if (table.length === 0) return { rows: [], errors: [{ line: 1, message: 'The file is empty.' }] }
 
@@ -59,6 +75,8 @@ export function parseRoster(text) {
     const last = get(cells, 'last_name')
     const className = get(cells, 'class_name')
     const activeRaw = get(cells, 'active').toLowerCase()
+    const planRaw = get(cells, 'plan_code')
+    const planCode = index.plan_code === undefined ? undefined : resolvePlan(planRaw, plans)
 
     const problems = []
     if (!isValidStudentCode(code)) problems.push(`invalid student ID “${code}” (use 1–32 letters, digits, - or _)`)
@@ -71,15 +89,24 @@ export function parseRoster(text) {
     if (FALSE_VALUES.includes(activeRaw)) active = false
     else if (!TRUE_VALUES.includes(activeRaw)) problems.push(`active must be yes/no, got “${activeRaw}”`)
 
+    if (index.plan_code !== undefined && planCode === undefined) {
+      problems.push(`unknown plan “${planRaw}” (use ${plans.map((p) => p.code).join(', ') || 'a plan code'}, or leave blank)`)
+    }
+
     if (seen.has(code)) problems.push(`duplicate student ID (also on line ${seen.get(code)})`)
     else seen.set(code, line)
 
     if (problems.length) errors.push({ line, message: problems.join('; ') })
-    else rows.push({ student_code: code, first_name: first, last_name: last, class_name: className, active })
+    else {
+      const row = { student_code: code, first_name: first, last_name: last, class_name: className, active }
+      if (index.plan_code !== undefined) row.plan_code = planCode
+      rows.push(row)
+    }
   })
 
   if (rows.length === 0 && errors.length === 0) errors.push({ line: 2, message: 'No students found in the file.' })
   return { rows, errors }
 }
 
-export const ROSTER_TEMPLATE = 'student_id,first_name,last_name,class,active\r\nS0001,Jane,Example,5A,yes\r\n'
+export const ROSTER_TEMPLATE =
+  'student_id,first_name,last_name,class,plan,active\r\nS0001,Jane,Example,5A,twice,yes\r\nS0002,John,Sample,5A,thrice,yes\r\n'

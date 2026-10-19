@@ -52,6 +52,33 @@ export async function getMealPeriods() {
   )
 }
 
+/** Feeding plans ("sections") with the meal periods each one covers. */
+export async function getFeedingPlans() {
+  const rows = unwrap(
+    await supabase
+      .from('feeding_plans')
+      .select('code, label, meals_per_day, sort_order, feeding_plan_periods(meal_period)')
+      .order('sort_order'),
+  )
+  return rows.map(({ feeding_plan_periods: fpp, ...plan }) => ({ ...plan, periods: fpp.map((p) => p.meal_period) }))
+}
+
+export async function setFeedingPlan({ code, label, mealsPerDay, periods }) {
+  return unwrap(
+    await supabase.rpc('set_feeding_plan', {
+      p_code: code,
+      p_label: label,
+      p_meals_per_day: mealsPerDay,
+      p_meal_periods: periods,
+    }),
+  )
+}
+
+/** Per-plan enrolment and meals served per period between two dates. */
+export async function feedingPlanSummary(from, to) {
+  return unwrap(await supabase.rpc('feeding_plan_summary', { p_from: from, p_to: to }))
+}
+
 export async function getSchoolToday() {
   return unwrap(await supabase.rpc('school_today'))
 }
@@ -78,6 +105,8 @@ function recordsQuery(filters, select, opts) {
   if (filters.to) q = q.lte('service_date', filters.to)
   if (filters.mealPeriod) q = q.eq('meal_period', filters.mealPeriod)
   if (filters.className) q = q.eq('class_name', filters.className)
+  if (filters.planCode === 'none') q = q.is('plan_code', null)
+  else if (filters.planCode) q = q.eq('plan_code', filters.planCode)
   if (filters.status === 'active') q = q.eq('voided', false)
   if (filters.status === 'voided') q = q.eq('voided', true)
   if (filters.search) q = applyNameSearch(q, filters.search)
@@ -151,11 +180,13 @@ export async function addRecord({ studentCode, mealPeriod, serviceDate, reason }
 // ---------------------------------------------------------------------------
 // Students
 // ---------------------------------------------------------------------------
-export async function listStudents({ search, className, includeInactive }, page = 0) {
+export async function listStudents({ search, className, includeInactive, planCode }, page = 0) {
   const from = page * PAGE_SIZE
   let q = supabase.from('students').select('*', { count: 'exact' })
   if (!includeInactive) q = q.eq('active', true)
   if (className) q = q.eq('class_name', className)
+  if (planCode === 'none') q = q.is('plan_code', null)
+  else if (planCode) q = q.eq('plan_code', planCode)
   if (search) q = applyNameSearch(q, search)
   return unwrap(
     await q
@@ -163,6 +194,21 @@ export async function listStudents({ search, className, includeInactive }, page 
       .order('first_name')
       .range(from, from + PAGE_SIZE - 1),
   )
+}
+
+/** Number of students in each feeding-plan section ('none' = no plan). */
+export async function countStudentsByPlan(plans, { includeInactive } = {}) {
+  const codes = [...plans.map((p) => p.code), 'none']
+  const entries = await Promise.all(
+    codes.map(async (code) => {
+      let q = supabase.from('students').select('id', { count: 'exact', head: true })
+      if (!includeInactive) q = q.eq('active', true)
+      q = code === 'none' ? q.is('plan_code', null) : q.eq('plan_code', code)
+      const { count } = unwrap(await q)
+      return [code, count ?? 0]
+    }),
+  )
+  return Object.fromEntries(entries)
 }
 
 export async function listClasses() {
@@ -177,6 +223,7 @@ export async function saveStudent(student) {
     last_name: student.last_name,
     class_name: student.class_name,
     active: student.active,
+    plan_code: student.plan_code || null,
   }
   if (student.id) return unwrap(await supabase.from('students').update(fields).eq('id', student.id).select().single())
   return unwrap(await supabase.from('students').insert(fields).select().single())

@@ -222,3 +222,60 @@ describe('check-in messages', () => {
     expect(describeCheckIn({ status: 'invalid_id', student_code: '' }, 'UTC').detail).toMatch(/Manual lookup/)
   })
 })
+
+describe('feeding plans', () => {
+  const plans = [
+    { code: 'once', label: 'Once a day', meals_per_day: 1 },
+    { code: 'twice', label: 'Twice a day', meals_per_day: 2 },
+    { code: 'thrice', label: 'Thrice a day', meals_per_day: 3 },
+  ]
+
+  it('reads the plan column by code, name or number of meals', () => {
+    const csv = 'student_id,first_name,last_name,plan\nS1,A,B,once\nS2,C,D,Twice a day\nS3,E,F,3\nS4,G,H,\nS5,I,J,thrice a day\n'
+    const { rows, errors } = parseRoster(csv, plans)
+    expect(errors).toEqual([])
+    expect(rows.map((r) => r.plan_code)).toEqual(['once', 'twice', 'thrice', null, 'thrice'])
+  })
+
+  it('rejects an unknown plan and omits plan_code when there is no plan column', () => {
+    expect(parseRoster('student_id,first_name,last_name,plan\nS1,A,B,four\n', plans).errors[0].message).toMatch(
+      /unknown plan “four”/,
+    )
+    expect(parseRoster('student_id,first_name,last_name\nS1,A,B\n', plans).rows[0]).not.toHaveProperty('plan_code')
+  })
+
+  const student = { student_code: 'S1', first_name: 'Ama', last_name: 'Mensah', class_name: '5A', plan_label: 'Once a day' }
+
+  it('shows the plan with the confirmation', () => {
+    const m = describeCheckIn(
+      { status: 'ok', student, meal_period_label: 'Lunch', checked_in_at: '2026-10-19T12:00:00Z', served_count: 1 },
+      'UTC',
+    )
+    expect(m.subtitle).toBe('Class 5A · Once a day')
+  })
+
+  it('explains a meal period outside the plan', () => {
+    const m = describeCheckIn(
+      { status: 'not_on_plan', student, meal_period_label: 'Breakfast', allowed_periods: ['Lunch'] },
+      'UTC',
+    )
+    expect(m).toMatchObject({ tone: 'error', title: 'Not in meal plan: Ama Mensah' })
+    expect(m.detail).toBe('Once a day covers Lunch only. Breakfast is not included, so no meal was recorded.')
+  })
+
+  it('explains the daily limit', () => {
+    const m = describeCheckIn(
+      {
+        status: 'plan_limit_reached',
+        student: { ...student, plan_label: 'Twice a day' },
+        meal_period_label: 'Supper',
+        meals_today: 2,
+        meals_per_day: 2,
+        meals_today_periods: ['Breakfast', 'Lunch'],
+      },
+      'UTC',
+    )
+    expect(m.tone).toBe('warning')
+    expect(m.detail).toBe('Twice a day: already had 2 of 2 meals today (Breakfast and Lunch). No meal was recorded.')
+  })
+})

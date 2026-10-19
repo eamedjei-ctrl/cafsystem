@@ -5,6 +5,7 @@ import {
   addRecord,
   correctRecord,
   countRecordsByPeriod,
+  feedingPlanSummary,
   fetchAllRecords,
   getSchoolToday,
   listClasses,
@@ -28,13 +29,13 @@ function useDebounced(value, ms = 300) {
 }
 
 export default function RecordsPage() {
-  const { role, periods, settings } = useAuth()
+  const { role, periods, plans, settings } = useAuth()
   const timeZone = settings.timezone
   const canCorrect = can(role, 'correctRecords')
   const canExport = can(role, 'exportRecords')
 
   const [today, setToday] = useState(null)
-  const [filters, setFilters] = useState({ from: '', to: '', mealPeriod: '', className: '', search: '', status: 'active' })
+  const [filters, setFilters] = useState({ from: '', to: '', mealPeriod: '', className: '', planCode: '', search: '', status: 'active' })
   const search = useDebounced(filters.search)
   const [page, setPage] = useState(0)
   const [classes, setClasses] = useState([])
@@ -42,6 +43,7 @@ export default function RecordsPage() {
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
   const [periodCounts, setPeriodCounts] = useState({})
+  const [planSummary, setPlanSummary] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [exporting, setExporting] = useState(null)
@@ -66,13 +68,15 @@ export default function RecordsPage() {
     setLoading(true)
     setError(null)
     try {
-      const [{ data, count }, counts] = await Promise.all([
+      const [{ data, count }, counts, summary] = await Promise.all([
         listRecords(effective, page),
         countRecordsByPeriod({ ...effective, mealPeriod: '' }, periods),
+        feedingPlanSummary(effective.from, effective.to || effective.from),
       ])
       setRows(data)
       setTotal(count)
       setPeriodCounts(counts)
+      setPlanSummary(summary)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -95,7 +99,7 @@ export default function RecordsPage() {
     try {
       const all = await fetchAllRecords(effective, setExporting)
       const csv = toCsv(
-        ['Service date', 'Meal period', 'Check-in time', 'Student ID', 'First name', 'Last name', 'Class', 'Method', 'Recorded by', 'Status', 'Void reason'],
+        ['Service date', 'Meal period', 'Check-in time', 'Student ID', 'First name', 'Last name', 'Class', 'Feeding plan', 'Method', 'Recorded by', 'Status', 'Void reason'],
         all.map((r) => [
           r.service_date,
           r.meal_period_label,
@@ -104,6 +108,7 @@ export default function RecordsPage() {
           r.first_name,
           r.last_name,
           r.class_name,
+          r.plan_label ?? 'No plan',
           METHOD_LABELS[r.method],
           r.recorded_by_name,
           r.voided ? 'Voided' : 'Served',
@@ -145,7 +150,7 @@ export default function RecordsPage() {
 
       {/* Filters */}
       <Card className="mb-4 p-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
           <Field label="From">
             {(id) => (
               <input id={id} type="date" className={inputClass} value={filters.from} max={filters.to || today || undefined} onChange={(e) => update({ from: e.target.value })} />
@@ -177,6 +182,19 @@ export default function RecordsPage() {
                     {c}
                   </option>
                 ))}
+              </select>
+            )}
+          </Field>
+          <Field label="Feeding plan">
+            {(id) => (
+              <select id={id} className={inputClass} value={filters.planCode} onChange={(e) => update({ planCode: e.target.value })}>
+                <option value="">All plans</option>
+                {plans.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.label}
+                  </option>
+                ))}
+                <option value="none">No plan</option>
               </select>
             )}
           </Field>
@@ -222,10 +240,14 @@ export default function RecordsPage() {
       {/* Summary */}
       <div className="mb-4 flex flex-wrap gap-3">
         <SummaryTile label="Total" value={totalServed} />
-        {periods.map((p) => (
-          <SummaryTile key={p.code} label={p.label} value={periodCounts[p.code] ?? 0} />
-        ))}
+        {periods
+          .filter((p) => p.active || periodCounts[p.code])
+          .map((p) => (
+            <SummaryTile key={p.code} label={p.label} value={periodCounts[p.code] ?? 0} />
+          ))}
       </div>
+
+      <PlanSummary summary={planSummary} periods={periods} selected={filters.planCode} onSelect={(code) => update({ planCode: code })} />
 
       {error && <Alert className="mb-4">{error}</Alert>}
       {notice && (
@@ -244,6 +266,7 @@ export default function RecordsPage() {
                 <th className="px-4 py-3">Period</th>
                 <th className="px-4 py-3">Student</th>
                 <th className="px-4 py-3">Class</th>
+                <th className="px-4 py-3">Plan</th>
                 <th className="px-4 py-3">Method</th>
                 <th className="px-4 py-3">Recorded by</th>
                 <th className="px-4 py-3">Status</th>
@@ -253,13 +276,13 @@ export default function RecordsPage() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-teal-700">
+                  <td colSpan={10} className="px-4 py-10 text-center text-teal-700">
                     <Spinner className="mx-auto h-8 w-8" />
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
+                  <td colSpan={10} className="px-4 py-10 text-center text-slate-500">
                     No records match these filters.
                   </td>
                 </tr>
@@ -276,6 +299,7 @@ export default function RecordsPage() {
                       <div className="text-xs text-slate-500">{r.student_code}</div>
                     </td>
                     <td className="px-4 py-3">{r.class_name}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{r.plan_label ?? '—'}</td>
                     <td className="px-4 py-3">
                       <Badge tone={r.method === 'scan' ? 'slate' : r.method === 'manual' ? 'blue' : 'amber'}>
                         {METHOD_LABELS[r.method]}
@@ -339,6 +363,61 @@ export default function RecordsPage() {
         }}
       />
     </>
+  )
+}
+
+/** "By feeding plan" section: students per plan and meals served per period. */
+function PlanSummary({ summary, periods, selected, onSelect }) {
+  if (!summary.length) return null
+  const shown = periods.filter((p) => p.active || summary.some((s) => s.served[p.code]))
+  return (
+    <Card className="mb-4 overflow-hidden">
+      <div className="border-b border-slate-100 px-4 py-3">
+        <h2 className="font-semibold text-slate-900">By feeding plan</h2>
+        <p className="text-xs text-slate-500">Meals served in the selected dates, grouped by the plan each student was on. Click a row to filter.</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <tr>
+              <th className="px-4 py-2">Section</th>
+              <th className="px-4 py-2 text-right">Students</th>
+              {shown.map((p) => (
+                <th key={p.code} className="px-4 py-2 text-right">
+                  {p.label}
+                </th>
+              ))}
+              <th className="px-4 py-2 text-right">Total meals</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {summary.map((s) => {
+              const code = s.plan_code ?? 'none'
+              const total = Object.values(s.served).reduce((a, b) => a + b, 0)
+              return (
+                <tr
+                  key={code}
+                  onClick={() => onSelect(selected === code ? '' : code)}
+                  className={`cursor-pointer hover:bg-teal-50 ${selected === code ? 'bg-teal-50' : ''}`}
+                >
+                  <td className="px-4 py-2 font-medium text-slate-900">
+                    {s.meals_per_day && <span className="mr-2 font-black text-teal-700">{s.meals_per_day}×</span>}
+                    {s.plan_label}
+                  </td>
+                  <td className="px-4 py-2 text-right">{s.enrolled}</td>
+                  {shown.map((p) => (
+                    <td key={p.code} className="px-4 py-2 text-right tabular-nums">
+                      {s.served[p.code] ?? 0}
+                    </td>
+                  ))}
+                  <td className="px-4 py-2 text-right font-semibold tabular-nums">{total}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   )
 }
 

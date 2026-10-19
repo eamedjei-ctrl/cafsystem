@@ -11,6 +11,18 @@ export function formatTime(iso, timeZone) {
   return new Intl.DateTimeFormat(undefined, { timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(iso))
 }
 
+/** "Class 5A · Twice a day" */
+export function studentSubtitle(student) {
+  const parts = [student.class_name && `Class ${student.class_name}`, student.plan_label].filter(Boolean)
+  return parts.length ? parts.join(' · ') : undefined
+}
+
+/** ["Breakfast", "Lunch"] -> "Breakfast and Lunch" */
+export function listLabels(labels) {
+  if (!labels?.length) return 'no meal periods'
+  return labels.length === 1 ? labels[0] : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`
+}
+
 export function describeCheckIn(result, timeZone) {
   switch (result.status) {
     case 'ok':
@@ -18,14 +30,28 @@ export function describeCheckIn(result, timeZone) {
         tone: 'success',
         title: fullName(result.student),
         detail: `Checked in for ${result.meal_period_label}`,
-        subtitle: result.student.class_name ? `Class ${result.student.class_name}` : undefined,
+        subtitle: studentSubtitle(result.student),
+      }
+    case 'not_on_plan':
+      return {
+        tone: 'error',
+        title: `Not in meal plan: ${fullName(result.student)}`,
+        detail: `${result.student.plan_label} covers ${listLabels(result.allowed_periods)} only. ${result.meal_period_label} is not included, so no meal was recorded.`,
+        subtitle: studentSubtitle(result.student),
+      }
+    case 'plan_limit_reached':
+      return {
+        tone: 'warning',
+        title: `Daily limit reached: ${fullName(result.student)}`,
+        detail: `${result.student.plan_label}: already had ${result.meals_today} of ${result.meals_per_day} meal${result.meals_per_day === 1 ? '' : 's'} today (${listLabels(result.meals_today_periods)}). No meal was recorded.`,
+        subtitle: studentSubtitle(result.student),
       }
     case 'duplicate':
       return {
         tone: 'warning',
         title: `Already served: ${fullName(result.student)}`,
         detail: `Checked in for ${result.meal_period_label} today at ${formatTime(result.first_checked_in_at, timeZone)}. No new record was added.`,
-        subtitle: result.student.class_name ? `Class ${result.student.class_name}` : undefined,
+        subtitle: studentSubtitle(result.student),
       }
     case 'unknown_student':
       return {

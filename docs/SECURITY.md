@@ -23,6 +23,7 @@
 | `audit_log` | ✗ | ✗ | ✗ | read | read |
 | `staff_profiles` | ✗ | own row | own row | read all | read all, update |
 | `meal_periods`, `app_settings` | ✗ | ✗ | read | read | read, update |
+| `feeding_plans`, `feeding_plan_periods` | ✗ | ✗ | read | read | read; write via `set_feeding_plan` |
 | delete anything | ✗ | ✗ | ✗ | ✗ | ✗ (deactivate instead) |
 
 How this is implemented, in `supabase/migrations/20261019000000_initial_schema.sql`:
@@ -49,6 +50,8 @@ All of these rules are covered by `tests/db/access.db.test.js`.
 
 - A **partial unique index** (`student_id, meal_period, service_date where not voided`) makes
   duplicates impossible, even when two tablets scan the same card at the same moment.
+- Feeding-plan rules (allowed meal periods and the daily limit) are checked inside `check_in`.
+  The function locks the student row, so two tablets cannot both serve a student past the limit.
 - The service date is computed **in the database** in the school's time zone, so a tablet with a
   wrong clock cannot record meals on the wrong day.
 - Student IDs are normalised (trimmed, upper-cased) and validated against a strict pattern, both in

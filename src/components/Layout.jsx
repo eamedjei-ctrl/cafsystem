@@ -6,6 +6,7 @@ const NAV = [
   { to: '/check-in', label: 'Check-in', permission: 'checkIn' },
   { to: '/records', label: 'Meal records', permission: 'viewRecords' },
   { to: '/students', label: 'Students', permission: 'viewStudents' },
+  { to: '/plans', label: 'Feeding plans', permission: 'viewStudents' },
   { to: '/audit', label: 'Audit log', permission: 'viewAudit' },
   { to: '/staff', label: 'Staff', permission: 'manageStaff' },
 ]

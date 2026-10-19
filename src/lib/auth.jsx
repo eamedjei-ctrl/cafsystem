@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { authClient, getMealPeriods, getOwnProfile, getSettings } from './api'
+import { authClient, getFeedingPlans, getMealPeriods, getOwnProfile, getSettings } from './api'
 
 const AuthContext = createContext(null)
 
@@ -10,6 +10,7 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [periods, setPeriods] = useState([])
+  const [plans, setPlans] = useState([])
   const [loadingProfile, setLoadingProfile] = useState(false)
   const [error, setError] = useState(null)
 
@@ -32,9 +33,10 @@ export function AuthProvider({ children }) {
       const p = await getOwnProfile(userId)
       setProfile(p)
       if (p?.role && p.active) {
-        const [s, mp] = await Promise.all([getSettings(), getMealPeriods()])
+        const [s, mp, fp] = await Promise.all([getSettings(), getMealPeriods(), getFeedingPlans()])
         setSettings(s)
         setPeriods(mp)
+        setPlans(fp)
       }
     } catch (e) {
       setError(e.message)
@@ -56,6 +58,8 @@ export function AuthProvider({ children }) {
       role: profile?.active ? profile.role : null,
       settings,
       periods,
+      plans,
+      reloadPlans: () => getFeedingPlans().then(setPlans),
       loading: session === undefined || loadingProfile,
       error,
       reload: loadProfile,
@@ -71,7 +75,7 @@ export function AuthProvider({ children }) {
         setProfile(null)
       },
     }),
-    [session, profile, settings, periods, loadingProfile, error, loadProfile],
+    [session, profile, settings, periods, plans, loadingProfile, error, loadProfile],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -14,7 +14,7 @@ import { addDays } from './supabaseApi'
 import { isValidStudentCode, normalizeStudentCode } from './studentCode'
 
 export const PAGE_SIZE = 50
-const STATE_KEY = 'cafDemo.state.v1'
+const STATE_KEY = 'cafDemo.state.v2'
 const SESSION_KEY = 'cafDemo.session.v1'
 const DENIED = 'You do not have permission to do this.'
 
@@ -80,6 +80,8 @@ function buildInitialState() {
     last_name: pick(last),
     class_name: classes[i % classes.length],
     active: i < 58, // DEMO0059 and DEMO0060 are inactive
+    // Mix of once / twice / thrice a day; DEMO0057-DEMO0060 have no plan.
+    plan_code: i + 1 <= 56 ? ['once', 'twice', 'thrice', 'thrice'][(i + 1) % 4] : null,
     created_at: now,
     updated_at: now,
   }))
@@ -88,8 +90,15 @@ function buildInitialState() {
   const periods = [
     { code: 'breakfast', label: 'Breakfast', starts_at: '06:30:00', ends_at: '09:30:00', sort_order: 10, active: true },
     { code: 'lunch', label: 'Lunch', starts_at: '11:00:00', ends_at: '14:00:00', sort_order: 20, active: true },
-    { code: 'snack', label: 'After-school snack', starts_at: '14:30:00', ends_at: '17:00:00', sort_order: 30, active: true },
+    { code: 'snack', label: 'After-school snack', starts_at: '14:30:00', ends_at: '17:00:00', sort_order: 30, active: false },
+    { code: 'supper', label: 'Supper', starts_at: '17:30:00', ends_at: '19:30:00', sort_order: 40, active: true },
   ]
+  const plans = [
+    { code: 'once', label: 'Once a day', meals_per_day: 1, sort_order: 10, periods: ['lunch'] },
+    { code: 'twice', label: 'Twice a day', meals_per_day: 2, sort_order: 20, periods: ['breakfast', 'lunch'] },
+    { code: 'thrice', label: 'Thrice a day', meals_per_day: 3, sort_order: 30, periods: ['breakfast', 'lunch', 'supper'] },
+  ]
+  const planPeriods = Object.fromEntries(plans.map((pl) => [pl.code, pl.periods]))
 
   // A few past school days of history so the dashboard has something to show.
   const records = []
@@ -98,10 +107,11 @@ function buildInitialState() {
     const day = addDays(today, -back)
     const dow = new Date(`${day}T00:00:00Z`).getUTCDay()
     if (dow === 0 || dow === 6) continue
-    for (const period of periods.slice(0, 2)) {
+    for (const period of periods.filter((p) => p.active)) {
       const [h, m] = period.starts_at.split(':').map(Number)
       for (const s of students.filter((st) => st.active)) {
-        if (random() > (period.code === 'lunch' ? 0.85 : 0.55)) continue
+        if (s.plan_code && !planPeriods[s.plan_code].includes(period.code)) continue
+        if (random() > 0.85) continue
         const at = new Date(`${day}T00:00:00Z`)
         at.setUTCMinutes(h * 60 + m + Math.floor(random() * 90))
         records.push({
@@ -112,6 +122,7 @@ function buildInitialState() {
           checked_in_at: at.toISOString(),
           method: random() < 0.06 ? 'manual' : 'scan',
           recorded_by: 'demo-user-tablet',
+          plan_code: s.plan_code,
           voided: false,
           void_reason: null,
           voided_at: null,
@@ -125,6 +136,7 @@ function buildInitialState() {
   return {
     settings,
     periods,
+    plans,
     students,
     records,
     staff: DEMO_ACCOUNTS.map((a) => ({ ...a, active: true, created_at: now })),
@@ -255,6 +267,50 @@ export async function getMealPeriods() {
   return clone([...db().periods].sort((a, b) => a.sort_order - b.sort_order))
 }
 
+export async function getFeedingPlans() {
+  requireRole('checkin', 'supervisor', 'admin')
+  return clone([...db().plans].sort((a, b) => a.sort_order - b.sort_order))
+}
+
+export async function setFeedingPlan({ code, label, mealsPerDay, periods }) {
+  await delay()
+  requireRole('admin')
+  const s = db()
+  const plan = s.plans.find((pl) => pl.code === code)
+  if (!plan) throw new Error('Unknown feeding plan.')
+  const chosen = [...new Set(periods)]
+  if (chosen.some((c) => !s.periods.some((p) => p.code === c))) throw new Error('Unknown meal period.')
+  if (chosen.length === 0) throw new Error('Choose at least one meal period.')
+  if (!(mealsPerDay >= 1 && mealsPerDay <= chosen.length)) {
+    throw new Error(`Meals per day must be between 1 and the number of meal periods chosen (${chosen.length}).`)
+  }
+  const next = { ...plan, label: String(label).trim(), meals_per_day: mealsPerDay, periods: chosen }
+  audit('feeding_plans', code, 'UPDATE', plan, next, 'Feeding plan updated')
+  Object.assign(plan, next)
+  save()
+}
+
+export async function feedingPlanSummary(from, to) {
+  await delay()
+  requireRole('supervisor', 'admin')
+  const s = db()
+  const served = (planCode) => {
+    const out = {}
+    for (const r of s.records) {
+      if (r.voided || (r.plan_code ?? null) !== planCode || r.service_date < from || r.service_date > to) continue
+      out[r.meal_period] = (out[r.meal_period] ?? 0) + 1
+    }
+    return out
+  }
+  const enrolled = (planCode) => s.students.filter((st) => st.active && (st.plan_code ?? null) === planCode).length
+  return [
+    ...[...s.plans]
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((pl) => ({ plan_code: pl.code, plan_label: pl.label, meals_per_day: pl.meals_per_day, enrolled: enrolled(pl.code), served: served(pl.code) })),
+    { plan_code: null, plan_label: 'No plan set', meals_per_day: null, enrolled: enrolled(null), served: served(null) },
+  ]
+}
+
 export async function getSchoolToday() {
   requireRole('checkin', 'supervisor', 'admin')
   return today()
@@ -263,7 +319,20 @@ export async function getSchoolToday() {
 // ---------------------------------------------------------------------------
 // Check-in
 // ---------------------------------------------------------------------------
-const summary = (s) => ({ student_code: s.student_code, first_name: s.first_name, last_name: s.last_name, class_name: s.class_name })
+const planOf = (st) => (st.plan_code ? db().plans.find((pl) => pl.code === st.plan_code) ?? null : null)
+const summary = (st) => ({
+  student_code: st.student_code,
+  first_name: st.first_name,
+  last_name: st.last_name,
+  class_name: st.class_name,
+  plan_code: planOf(st)?.code ?? null,
+  plan_label: planOf(st)?.label ?? null,
+})
+const periodLabels = (codes) =>
+  db()
+    .periods.filter((p) => codes.includes(p.code))
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((p) => p.label)
 
 export async function checkIn(studentCode, mealPeriod, method = 'scan') {
   await delay()
@@ -294,6 +363,31 @@ export async function checkIn(studentCode, mealPeriod, method = 'scan') {
     }
   }
 
+  const plan = planOf(student)
+  if (plan) {
+    if (!plan.periods.includes(period.code)) {
+      return {
+        status: 'not_on_plan',
+        student: summary(student),
+        meal_period: period.code,
+        meal_period_label: period.label,
+        allowed_periods: periodLabels(plan.periods),
+      }
+    }
+    const todays = s.records.filter((r) => r.student_id === student.id && r.service_date === day && !r.voided)
+    if (todays.length >= plan.meals_per_day) {
+      return {
+        status: 'plan_limit_reached',
+        student: summary(student),
+        meal_period: period.code,
+        meal_period_label: period.label,
+        meals_today: todays.length,
+        meals_per_day: plan.meals_per_day,
+        meals_today_periods: periodLabels(todays.map((r) => r.meal_period)),
+      }
+    }
+  }
+
   const now = new Date().toISOString()
   const record = {
     id: uid(),
@@ -303,6 +397,7 @@ export async function checkIn(studentCode, mealPeriod, method = 'scan') {
     checked_in_at: now,
     method,
     recorded_by: profile.id,
+    plan_code: plan?.code ?? null,
     voided: false,
     void_reason: null,
     voided_at: null,
@@ -376,6 +471,8 @@ function details() {
       class_name: st.class_name,
       recorded_by: r.recorded_by,
       recorded_by_name: by ? by.full_name || by.email : null,
+      plan_code: r.plan_code ?? null,
+      plan_label: s.plans.find((pl) => pl.code === r.plan_code)?.label ?? null,
     }
   })
 }
@@ -387,6 +484,7 @@ function filterRecords(filters) {
       (!filters.to || r.service_date <= filters.to) &&
       (!filters.mealPeriod || r.meal_period === filters.mealPeriod) &&
       (!filters.className || r.class_name === filters.className) &&
+      (!filters.planCode || (filters.planCode === 'none' ? r.plan_code === null : r.plan_code === filters.planCode)) &&
       (filters.status !== 'active' || !r.voided) &&
       (filters.status !== 'voided' || r.voided) &&
       (!filters.search || matchesSearch(r, filters.search)),
@@ -467,6 +565,7 @@ export async function addRecord({ studentCode, mealPeriod, serviceDate, reason }
     checked_in_at: now,
     method: 'admin',
     recorded_by: profile.id,
+    plan_code: student.plan_code ?? null,
     voided: false,
     void_reason: null,
     voided_at: null,
@@ -482,14 +581,26 @@ export async function addRecord({ studentCode, mealPeriod, serviceDate, reason }
 // ---------------------------------------------------------------------------
 // Students
 // ---------------------------------------------------------------------------
-export async function listStudents({ search, className, includeInactive }, page = 0) {
+const planMatches = (st, planCode) =>
+  !planCode || (planCode === 'none' ? !st.plan_code : st.plan_code === planCode)
+
+export async function listStudents({ search, className, includeInactive, planCode }, page = 0) {
   await delay()
   requireRole('supervisor', 'admin')
   const rows = db()
     .students.filter((s) => (includeInactive || s.active) && (!className || s.class_name === className))
+    .filter((s) => planMatches(s, planCode))
     .filter((s) => !search || matchesSearch(s, search))
     .sort(byName)
   return { data: clone(rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)), count: rows.length }
+}
+
+export async function countStudentsByPlan(plans, { includeInactive } = {}) {
+  requireRole('supervisor', 'admin')
+  const students = db().students.filter((s) => includeInactive || s.active)
+  return Object.fromEntries(
+    [...plans.map((pl) => pl.code), 'none'].map((code) => [code, students.filter((s) => planMatches(s, code)).length]),
+  )
 }
 
 export async function listClasses() {
@@ -506,6 +617,12 @@ function validateStudent(st) {
     last_name: String(st.last_name ?? '').trim(),
     class_name: String(st.class_name ?? '').trim(),
     active: st.active ?? true,
+  }
+  if ('plan_code' in st) {
+    clean.plan_code = st.plan_code ? String(st.plan_code).trim().toLowerCase() : null
+    if (clean.plan_code && !db().plans.some((pl) => pl.code === clean.plan_code)) {
+      throw new Error(`Unknown feeding plan “${clean.plan_code}”.`)
+    }
   }
   if (!isValidStudentCode(clean.student_code)) throw new Error(`Invalid student ID “${clean.student_code}”.`)
   if (!clean.first_name || !clean.last_name) throw new Error('First and last name are required.')
@@ -528,7 +645,7 @@ export async function saveStudent(student) {
     save()
     return clone(existing)
   }
-  const created = { id: uid(), ...clean, created_at: now, updated_at: now }
+  const created = { id: uid(), plan_code: null, ...clean, created_at: now, updated_at: now }
   s.students.push(created)
   audit('students', created.id, 'INSERT', null, created)
   save()
@@ -542,15 +659,16 @@ export async function importStudents(rows, onProgress) {
   const s = db()
   const cleaned = rows.map(validateStudent) // all-or-nothing: validate everything first
   const totals = { total: rows.length, inserted: 0, updated: 0, unchanged: 0 }
+  const fields = ['first_name', 'last_name', 'class_name', 'active', ...(rows.some((r) => 'plan_code' in r) ? ['plan_code'] : [])]
   const now = new Date().toISOString()
   for (const row of cleaned) {
     const existing = s.students.find((st) => st.student_code === row.student_code)
     if (!existing) {
-      const created = { id: uid(), ...row, created_at: now, updated_at: now }
+      const created = { id: uid(), plan_code: null, ...row, created_at: now, updated_at: now }
       s.students.push(created)
       audit('students', created.id, 'INSERT', null, created, 'Roster import')
       totals.inserted++
-    } else if (['first_name', 'last_name', 'class_name', 'active'].some((k) => existing[k] !== row[k])) {
+    } else if (fields.some((k) => (existing[k] ?? null) !== (row[k] ?? null))) {
       const next = { ...existing, ...row, updated_at: now }
       audit('students', existing.id, 'UPDATE', existing, next, 'Roster import')
       Object.assign(existing, next)

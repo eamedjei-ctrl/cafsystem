@@ -435,6 +435,7 @@ function ManualLookup({ open, onClose, onPick, periodLabel }) {
                 <span className="text-sm text-slate-600">
                   ID {s.student_code}
                   {s.class_name && ` · Class ${s.class_name}`}
+                  {s.plan_label && ` · ${s.plan_label}`}
                 </span>
               </span>
               <span className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white">Check in</span>

@@ -67,3 +67,9 @@ insert into public.students (student_code, first_name, last_name, class_name, ac
   ('DEMO0059', 'Abena', 'Placeholder', '6A', false),
   ('DEMO0060', 'Abena', 'Demo', '6B', false)
 on conflict (student_code) do nothing;
+
+-- Feeding plans: a mix of once / twice / thrice a day. DEMO0057-DEMO0060 are
+-- left without a plan to show the "No plan set" section.
+update public.students
+set plan_code = (array['once', 'twice', 'thrice', 'thrice'])[(substring(student_code from 5)::int % 4) + 1]
+where student_code like 'DEMO%' and substring(student_code from 5)::int <= 56;

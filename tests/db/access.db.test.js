@@ -86,7 +86,7 @@ describe('deactivated staff', () => {
 
 describe('check-in role (cafeteria tablet)', () => {
   it('can read meal periods and settings', async () => {
-    expect(await count(tablet, 'public.meal_periods')).toBe(3)
+    expect(await count(tablet, 'public.meal_periods')).toBe(4)
     expect(await count(tablet, 'public.app_settings')).toBe(1)
   })
 

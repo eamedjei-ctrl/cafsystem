@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { useAuth } from '../lib/auth'
-import { PAGE_SIZE, importStudents, listClasses, listStudents, saveStudent } from '../lib/api'
+import { PAGE_SIZE, countStudentsByPlan, importStudents, listClasses, listStudents, saveStudent } from '../lib/api'
 import { can } from '../lib/permissions'
 import { parseRoster, ROSTER_TEMPLATE } from '../lib/roster'
 import { downloadCsv } from '../lib/csv'
@@ -8,8 +9,12 @@ import { isValidStudentCode, normalizeStudentCode } from '../lib/studentCode'
 import { Alert, Badge, Button, Card, Field, Modal, PageHeader, Pagination, Spinner, inputClass } from '../components/ui'
 
 export default function StudentsPage() {
-  const { role } = useAuth()
+  const { role, plans } = useAuth()
   const canManage = can(role, 'manageStudents')
+  const [params, setParams] = useSearchParams()
+  const planCode = params.get('plan') ?? ''
+  const [planCounts, setPlanCounts] = useState({})
+  const planLabel = (code) => plans.find((p) => p.code === code)?.label
 
   const [search, setSearch] = useState('')
   const [debounced, setDebounced] = useState('')
@@ -37,15 +42,19 @@ export default function StudentsPage() {
     setLoading(true)
     setError(null)
     try {
-      const { data, count } = await listStudents({ search: debounced, className, includeInactive }, page)
+      const [{ data, count }, counts] = await Promise.all([
+        listStudents({ search: debounced, className, includeInactive, planCode }, page),
+        countStudentsByPlan(plans, { includeInactive }),
+      ])
       setRows(data)
       setTotal(count)
+      setPlanCounts(counts)
     } catch (e) {
       setError(e.message)
     } finally {
       setLoading(false)
     }
-  }, [debounced, className, includeInactive, page])
+  }, [debounced, className, includeInactive, planCode, plans, page])
 
   useEffect(() => {
     load()
@@ -68,20 +77,66 @@ export default function StudentsPage() {
     <>
       <PageHeader
         title="Students"
-        description="Only the student ID, name, class and active status are stored."
+        description="Only the student ID, name, class, feeding plan and active status are stored."
         actions={
           canManage && (
             <>
               <Button variant="secondary" onClick={() => setImporting(true)}>
                 Import roster CSV
               </Button>
-              <Button onClick={() => setEditing({ student_code: '', first_name: '', last_name: '', class_name: '', active: true })}>
+              <Button
+                onClick={() =>
+                  setEditing({
+                    student_code: '',
+                    first_name: '',
+                    last_name: '',
+                    class_name: '',
+                    active: true,
+                    plan_code: planCode && planCode !== 'none' ? planCode : '',
+                  })
+                }
+              >
                 Add student
               </Button>
             </>
           )
         }
       />
+
+      {/* Feeding-plan sections */}
+      <div role="tablist" aria-label="Feeding plan" className="mb-4 flex flex-wrap gap-2">
+        {[
+          { code: '', label: 'All students', count: Object.values(planCounts).reduce((a, b) => a + b, 0) },
+          ...plans.map((p) => ({ code: p.code, label: p.label, count: planCounts[p.code] })),
+          { code: 'none', label: 'No plan', count: planCounts.none },
+        ].map((tab) => {
+          const selected = tab.code === planCode
+          return (
+            <button
+              key={tab.code || 'all'}
+              role="tab"
+              aria-selected={selected}
+              onClick={() => {
+                setParams(tab.code ? { plan: tab.code } : {})
+                setPage(0)
+              }}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold ring-1 transition-colors ${
+                selected ? 'bg-teal-700 text-white ring-teal-700' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
+              } ${tab.code === 'none' && tab.count > 0 && !selected ? 'text-amber-800 ring-amber-300' : ''}`}
+            >
+              {tab.label}
+              <span className={`rounded-full px-2 py-0.5 text-xs ${selected ? 'bg-white/20' : 'bg-slate-100'}`}>
+                {tab.count ?? '…'}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      {planCode === 'none' && planCounts.none > 0 && (
+        <Alert tone="warning" className="mb-4">
+          These students have no feeding plan, so check-in does not restrict them. {canManage && 'Edit each one, or import a roster CSV with a plan column.'}
+        </Alert>
+      )}
 
       <Card className="mb-4 flex flex-wrap items-end gap-3 p-4">
         <Field label="Search" className="min-w-56 flex-1">
@@ -133,6 +188,7 @@ export default function StudentsPage() {
                 <th className="px-4 py-3">Student ID</th>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Class</th>
+                <th className="px-4 py-3">Feeding plan</th>
                 <th className="px-4 py-3">Status</th>
                 {canManage && <th className="px-4 py-3 text-right">Actions</th>}
               </tr>
@@ -140,13 +196,13 @@ export default function StudentsPage() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-teal-700">
+                  <td colSpan={6} className="px-4 py-10 text-center text-teal-700">
                     <Spinner className="mx-auto h-8 w-8" />
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
+                  <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
                     No students found.
                   </td>
                 </tr>
@@ -158,6 +214,9 @@ export default function StudentsPage() {
                       {s.last_name}, {s.first_name}
                     </td>
                     <td className="px-4 py-3">{s.class_name}</td>
+                    <td className="px-4 py-3">
+                      {s.plan_code ? <Badge tone="blue">{planLabel(s.plan_code) ?? s.plan_code}</Badge> : <Badge tone="amber">No plan</Badge>}
+                    </td>
                     <td className="px-4 py-3">{s.active ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</td>
                     {canManage && (
                       <td className="px-4 py-3 text-right">
@@ -177,21 +236,21 @@ export default function StudentsPage() {
 
       {canManage && (
         <>
-          <StudentDialog student={editing} onClose={() => setEditing(null)} onDone={done} />
-          <ImportDialog open={importing} onClose={() => setImporting(false)} onDone={done} />
+          <StudentDialog student={editing} plans={plans} onClose={() => setEditing(null)} onDone={done} />
+          <ImportDialog open={importing} plans={plans} onClose={() => setImporting(false)} onDone={done} />
         </>
       )}
     </>
   )
 }
 
-function StudentDialog({ student, onClose, onDone }) {
+function StudentDialog({ student, plans, onClose, onDone }) {
   const [form, setForm] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    setForm(student ? { ...student } : null)
+    setForm(student ? { ...student, plan_code: student.plan_code ?? '' } : null)
     setError(null)
   }, [student])
 
@@ -232,9 +291,23 @@ function StudentDialog({ student, onClose, onDone }) {
             {(id) => <input id={id} required maxLength={100} className={inputClass} value={form.last_name} onChange={(e) => set({ last_name: e.target.value })} />}
           </Field>
         </div>
-        <Field label="Class">
-          {(id) => <input id={id} maxLength={50} className={inputClass} value={form.class_name} onChange={(e) => set({ class_name: e.target.value })} />}
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Class">
+            {(id) => <input id={id} maxLength={50} className={inputClass} value={form.class_name} onChange={(e) => set({ class_name: e.target.value })} />}
+          </Field>
+          <Field label="Feeding plan">
+            {(id) => (
+              <select id={id} className={inputClass} value={form.plan_code} onChange={(e) => set({ plan_code: e.target.value })}>
+                <option value="">No plan (not restricted)</option>
+                {plans.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+        </div>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={form.active} onChange={(e) => set({ active: e.target.checked })} />
           <span>
@@ -256,7 +329,7 @@ function StudentDialog({ student, onClose, onDone }) {
   )
 }
 
-function ImportDialog({ open, onClose, onDone }) {
+function ImportDialog({ open, plans, onClose, onDone }) {
   const [parsed, setParsed] = useState(null)
   const [fileName, setFileName] = useState('')
   const [progress, setProgress] = useState(null)
@@ -280,7 +353,7 @@ function ImportDialog({ open, onClose, onDone }) {
       return
     }
     setFileName(file.name)
-    setParsed(parseRoster(await file.text()))
+    setParsed(parseRoster(await file.text(), plans))
   }
 
   async function runImport() {
@@ -300,7 +373,8 @@ function ImportDialog({ open, onClose, onDone }) {
       <div className="space-y-4 text-sm">
         <p className="text-slate-600">
           Upload a CSV with the columns <code>student_id, first_name, last_name, class</code> and optionally{' '}
-          <code>active</code> (yes/no). Students are matched by student ID: existing students are updated, new ones are
+          <code>plan</code> (<code>once</code>, <code>twice</code> or <code>thrice</code>) and <code>active</code> (yes/no). If
+          the file has no <code>plan</code> column, existing plans are kept. Students are matched by student ID: existing students are updated, new ones are
           added. Students missing from the file are <strong>not</strong> removed. Deactivate them individually, or include
           them with <code>active</code> set to <code>no</code>.
         </p>
@@ -338,6 +412,9 @@ function ImportDialog({ open, onClose, onDone }) {
                           {r.last_name}, {r.first_name}
                         </td>
                         <td className="px-3 py-1.5">{r.class_name}</td>
+                        {'plan_code' in r && (
+                          <td className="px-3 py-1.5">{plans.find((p) => p.code === r.plan_code)?.label ?? 'No plan'}</td>
+                        )}
                         <td className="px-3 py-1.5">{r.active ? 'Active' : 'Inactive'}</td>
                       </tr>
                     ))}

@@ -8,8 +8,8 @@
 | View and search meal records | | ✓ | ✓ |
 | Export CSV | | ✓ | ✓ |
 | Correct records (edit, void, restore, add missed) | | ✓ | ✓ |
-| View students and the audit log | | ✓ | ✓ |
-| Add, edit or import students | | | ✓ |
+| View students, feeding plans and the audit log | | ✓ | ✓ |
+| Add, edit or import students; edit feeding plans | | | ✓ |
 | Manage staff accounts and roles | | | ✓ |
 
 ## Cafeteria staff: running the check-in screen
@@ -24,6 +24,8 @@
 | --- | --- | --- | --- |
 | **Green** with the student's name | one high beep | Meal recorded | Serve the student |
 | **Amber** "Already served" | two beeps | This student already checked in for this meal today. The time of the first check-in is shown. Nothing new was recorded. | Follow school policy for second servings |
+| **Red** "Not in meal plan" | low tone | The student's feeding plan does not include this meal (e.g. a once-a-day student at breakfast). Nothing was recorded. | Do not serve; refer to the supervisor if there is a mistake |
+| **Amber** "Daily limit reached" | two beeps | The student has already had all the meals their plan allows today | Do not serve |
 | **Red** "ID not recognised" | low tone | No student has this ID | Try again, or use Manual lookup. The card may be damaged or the student may not be in the roster. |
 | **Red** "Inactive record" | low tone | The student is marked inactive | Refer the student to the office |
 | **Red** "Invalid ID" | low tone | The scan was not a valid ID (misread or wrong barcode) | Scan again |
@@ -41,10 +43,34 @@
 Tips: tap **Full screen** at the start of service. A card held under the scanner or a scanner that
 fires twice is ignored for 3 seconds, so it won't show a false "already served".
 
+## Feeding plans (sections)
+
+Every student belongs to one section:
+
+| Section | Default meals |
+| --- | --- |
+| Once a day | Lunch |
+| Twice a day | Breakfast and Lunch |
+| Thrice a day | Breakfast, Lunch and Supper |
+
+The green confirmation shows the student's section, for example "Class 5A · Twice a day".
+Students with **no plan** are not restricted. They appear under the "No plan" tab on the Students
+page so an admin can assign one.
+
+Admins can change a section on the **Feeding plans** page:
+
+- **Meal periods included:** which meals the section can be served.
+- **Meals allowed per day:** a limit. If you tick more periods than the limit, students can choose.
+  For example, ticking Breakfast, Lunch and Supper with a limit of 1 means any one meal a day.
+
+Changes apply to the next scan and are recorded in the audit log.
+
 ## Supervisors: records, corrections and export
 
 - **Meal records** shows today's records by default. Use the filters for dates, meal period, class,
-  student name or ID, and status (served or voided). The tiles show totals per period.
+  feeding plan, student name or ID, and status (served or voided). The tiles show totals per period.
+  The **By feeding plan** table shows, for each section, how many students are on it and how many
+  meals they were served in each period. Click a row to filter the list to that section.
 - **Export CSV** downloads every record that matches the current filters, not just the visible
   page. The file opens in Excel or Google Sheets.
 - **Edit** changes a record's meal period or date, for example when the tablet was left on
@@ -52,7 +78,8 @@ fires twice is ignored for 3 seconds, so it won't show a false "already served".
 - **Void** cancels a record that should not exist, such as a wrong card or a test scan. The record
   is kept for the audit trail but is no longer counted. The student can then be checked in again.
 - **Restore** un-voids a record. It is refused if the student has checked in again since.
-- **Add missed record** adds a meal for a student who was served but not checked in.
+- **Add missed record** adds a meal for a student who was served but not checked in. This is a
+  deliberate override, so it is allowed even outside the student's feeding plan.
 - Every correction requires a **reason**, which is stored permanently with your name in the
   **Audit log**.
 
@@ -78,6 +105,7 @@ data. The app always keeps at least one active administrator.
    | `first_name` | yes | |
    | `last_name` | yes | `surname` is also accepted |
    | `class` | no | Homeroom, form or grade. `grade`/`form`/`homeroom` headers also work. |
+   | `plan` | no | `once`, `twice` or `thrice` (or `1`/`2`/`3`, or the plan name). Blank = no plan. If the column is missing, each student's current plan is kept. |
    | `active` | no | `yes`/`no` (default yes) |
 
    Do not include any other personal data. Extra columns are ignored and never uploaded.
@@ -87,7 +115,8 @@ data. The app always keeps at least one active administrator.
    and nothing is imported.
 3. Click **Import**. Students are matched by `student_id`: new IDs are added, and existing ones are
    updated (name, class, active).
-4. Students who are **not** in the file are left unchanged. To remove leavers, include them with
+4. If the file has a `plan` column, each student's feeding plan is set from it (blank = no plan).
+5. Students who are **not** in the file are left unchanged. To remove leavers, include them with
    `active` set to `no`, or deactivate them on the Students page. Students are never deleted, so
    meal history is preserved.
 

@@ -65,8 +65,9 @@ seed data.
    ```
    Use the school's [IANA time zone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
    It decides which calendar day a check-in belongs to.
-5. **SCHOOL-SPECIFIC: meal periods.** The migration creates Breakfast (06:30–09:30), Lunch
-   (11:00–14:00) and After-school snack (14:30–17:00). Adjust them to the school's schedule:
+5. **SCHOOL-SPECIFIC: meal periods.** The migrations create Breakfast (06:30–09:30), Lunch
+   (11:00–14:00) and Supper (17:30–19:30). The older After-school snack period is switched off
+   unless it has already been used. Adjust them to the school's schedule:
    ```sql
    update public.meal_periods set starts_at = '07:00', ends_at = '08:30' where code = 'breakfast';
    update public.meal_periods set active = false where code = 'snack';
@@ -75,6 +76,15 @@ seed data.
    ```
    The times only pre-select the likely period on the tablet. Check-ins outside the window are
    still accepted. Don't delete a period that has records; set `active = false` instead.
+6. **SCHOOL-SPECIFIC: feeding plans.** The default sections are:
+   - Once a day: Lunch
+   - Twice a day: Breakfast and Lunch
+   - Thrice a day: Breakfast, Lunch and Supper
+
+   An admin can change the periods in each plan and the meals allowed per day on the **Feeding
+   plans** page. For example, set "Once a day" to any one of Breakfast, Lunch or Supper by ticking
+   all three and keeping 1 meal per day. Then assign each student a plan, either individually or
+   with the `plan` column in the roster CSV.
 
 ## 4. Create the first admin
 
