@@ -19,7 +19,25 @@ clear confirmation. Staff can search, correct and export the records.
 | Staff | Admins assign roles (`checkin`, `supervisor`, `admin`) and deactivate accounts. |
 | Audit log | Append-only history of corrections, roster changes and access changes. |
 
-## Quick start (local)
+## Try it instantly (demo mode, no database)
+
+```bash
+npm install
+cp .env.example .env.local     # then set VITE_DEMO_MODE=true
+npm run dev                    # http://localhost:5173
+```
+
+Demo mode runs on fictional sample data stored only in your browser. A purple banner is shown on
+every page, along with a "Reset demo data" button. It is for trying the app out, not for real
+students. Logins (password `demo-password-1` for all):
+
+| Email | Role |
+| --- | --- |
+| `tablet@demo.school` | Check-in staff |
+| `supervisor@demo.school` | Supervisor |
+| `admin@demo.school` | Administrator |
+
+## Quick start (local Supabase)
 
 Requires Node 20+, Docker and the [Supabase CLI](https://supabase.com/docs/guides/cli).
 

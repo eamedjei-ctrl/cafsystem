@@ -21,6 +21,13 @@ Environment Variables for production. `.env.local` is git-ignored.
 
 ## 2. Local development
 
+**Without a database:** set `VITE_DEMO_MODE=true` in `.env.local` and run `npm run dev`. The app
+then uses fictional in-browser data (`src/lib/demoApi.js`) and shows a demo banner. Never enable
+demo mode in a production deployment: demo data is not protected by the database's security
+rules.
+
+**With a local Supabase:**
+
 ```bash
 npm install
 supabase start          # applies supabase/migrations/* and supabase/seed.sql

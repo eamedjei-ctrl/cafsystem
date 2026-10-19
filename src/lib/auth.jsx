@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { supabase } from './supabase'
-import { getMealPeriods, getOwnProfile, getSettings } from './api'
+import { authClient, getMealPeriods, getOwnProfile, getSettings } from './api'
 
 const AuthContext = createContext(null)
 
@@ -15,8 +14,8 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next))
+    authClient.getSession().then(({ data }) => setSession(data.session))
+    const { data } = authClient.onAuthStateChange((_event, next) => setSession(next))
     return () => data.subscription.unsubscribe()
   }, [])
 
@@ -61,14 +60,14 @@ export function AuthProvider({ children }) {
       error,
       reload: loadProfile,
       signIn: async (email, password) => {
-        const { error: e } = await supabase.auth.signInWithPassword({ email, password })
+        const { error: e } = await authClient.signInWithPassword({ email, password })
         if (!e) return
         if (e.message === 'Invalid login credentials') throw new Error('Incorrect email or password.')
         if (/fetch|network/i.test(e.message)) throw new Error('Cannot reach the server. Check the internet connection and try again.')
         throw new Error(e.message)
       },
       signOut: async () => {
-        await supabase.auth.signOut()
+        await authClient.signOut()
         setProfile(null)
       },
     }),
