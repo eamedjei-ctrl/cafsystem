@@ -12,9 +12,10 @@
  */
 import { addDays } from './supabaseApi'
 import { isValidStudentCode, normalizeStudentCode } from './studentCode'
+import { CHIT_COLORS } from './chits'
 
 export const PAGE_SIZE = 50
-const STATE_KEY = 'cafDemo.state.v2'
+const STATE_KEY = 'cafDemo.state.v3'
 const SESSION_KEY = 'cafDemo.session.v1'
 const DENIED = 'You do not have permission to do this.'
 
@@ -70,7 +71,6 @@ function buildInitialState() {
   const pick = (list) => list[Math.floor(random() * list.length)]
   const first = ['Ama', 'Kofi', 'Esi', 'Kwame', 'Abena', 'Yaw', 'Akosua', 'Kojo', 'Adwoa', 'Kwabena', 'Efua', 'Kwaku', 'Afua', 'Fiifi', 'Yaa', 'Nana', 'Maya', 'Leo', 'Sofia', 'Noah', 'Zara', 'Ethan', 'Lina', 'Omar', 'Ivy', 'Theo', 'Ruby', 'Felix', 'Nia', 'Jonah']
   const last = ['Sample', 'Example', 'Testperson', 'Demo', 'Placeholder', 'Fakename', 'Mockley', 'Trial', 'Specimen', 'Dummy']
-  const classes = ['4A', '4B', '5A', '5B', '6A', '6B']
   const now = new Date().toISOString()
 
   const students = Array.from({ length: 60 }, (_, i) => ({
@@ -78,7 +78,6 @@ function buildInitialState() {
     student_code: `DEMO${String(i + 1).padStart(4, '0')}`,
     first_name: pick(first),
     last_name: pick(last),
-    class_name: classes[i % classes.length],
     active: i < 58, // DEMO0059 and DEMO0060 are inactive
     // Mix of once / twice / thrice a day; DEMO0057-DEMO0060 have no plan.
     plan_code: i + 1 <= 56 ? ['once', 'twice', 'thrice', 'thrice'][(i + 1) % 4] : null,
@@ -86,7 +85,7 @@ function buildInitialState() {
     updated_at: now,
   }))
 
-  const settings = { school_name: 'Demo Primary School (sample data)', timezone: 'Africa/Accra' }
+  const settings = { school_name: 'Valley View University (sample data)', timezone: 'Africa/Accra' }
   const periods = [
     { code: 'breakfast', label: 'Breakfast', starts_at: '06:30:00', ends_at: '09:30:00', sort_order: 10, active: true },
     { code: 'lunch', label: 'Lunch', starts_at: '11:00:00', ends_at: '14:00:00', sort_order: 20, active: true },
@@ -94,11 +93,11 @@ function buildInitialState() {
     { code: 'supper', label: 'Supper', starts_at: '17:30:00', ends_at: '19:30:00', sort_order: 40, active: true },
   ]
   const plans = [
-    { code: 'once', label: 'Once a day', meals_per_day: 1, sort_order: 10, periods: ['lunch'] },
-    { code: 'twice', label: 'Twice a day', meals_per_day: 2, sort_order: 20, periods: ['breakfast', 'lunch'] },
-    { code: 'thrice', label: 'Thrice a day', meals_per_day: 3, sort_order: 30, periods: ['breakfast', 'lunch', 'supper'] },
+    { code: 'once', label: 'Once a day', meals_per_day: 1, sort_order: 10, periods: ['lunch', 'supper'], chits: { lunch: 'blue', supper: 'blue' } },
+    { code: 'twice', label: 'Twice a day', meals_per_day: 2, sort_order: 20, periods: ['lunch', 'supper'], chits: { lunch: 'pink', supper: 'yellow' } },
+    { code: 'thrice', label: 'Thrice a day', meals_per_day: 3, sort_order: 30, periods: ['breakfast', 'lunch', 'supper'], chits: { breakfast: 'blue', lunch: 'blue', supper: 'blue' } },
   ]
-  const planPeriods = Object.fromEntries(plans.map((pl) => [pl.code, pl.periods]))
+  const planByCode = Object.fromEntries(plans.map((pl) => [pl.code, pl]))
 
   // A few past school days of history so the dashboard has something to show.
   const records = []
@@ -107,11 +106,14 @@ function buildInitialState() {
     const day = addDays(today, -back)
     const dow = new Date(`${day}T00:00:00Z`).getUTCDay()
     if (dow === 0 || dow === 6) continue
+    const mealsToday = new Map()
     for (const period of periods.filter((p) => p.active)) {
       const [h, m] = period.starts_at.split(':').map(Number)
       for (const s of students.filter((st) => st.active)) {
-        if (s.plan_code && !planPeriods[s.plan_code].includes(period.code)) continue
+        const plan = planByCode[s.plan_code]
+        if (plan && (!plan.periods.includes(period.code) || (mealsToday.get(s.id) ?? 0) >= plan.meals_per_day)) continue
         if (random() > 0.85) continue
+        mealsToday.set(s.id, (mealsToday.get(s.id) ?? 0) + 1)
         const at = new Date(`${day}T00:00:00Z`)
         at.setUTCMinutes(h * 60 + m + Math.floor(random() * 90))
         records.push({
@@ -272,7 +274,7 @@ export async function getFeedingPlans() {
   return clone([...db().plans].sort((a, b) => a.sort_order - b.sort_order))
 }
 
-export async function setFeedingPlan({ code, label, mealsPerDay, periods }) {
+export async function setFeedingPlan({ code, label, mealsPerDay, periods, chits = {} }) {
   await delay()
   requireRole('admin')
   const s = db()
@@ -284,7 +286,9 @@ export async function setFeedingPlan({ code, label, mealsPerDay, periods }) {
   if (!(mealsPerDay >= 1 && mealsPerDay <= chosen.length)) {
     throw new Error(`Meals per day must be between 1 and the number of meal periods chosen (${chosen.length}).`)
   }
-  const next = { ...plan, label: String(label).trim(), meals_per_day: mealsPerDay, periods: chosen }
+  const chosenChits = Object.fromEntries(chosen.filter((c) => chits[c]).map((c) => [c, chits[c]]))
+  if (Object.values(chosenChits).some((c) => !CHIT_COLORS[c])) throw new Error('Unknown chit colour.')
+  const next = { ...plan, label: String(label).trim(), meals_per_day: mealsPerDay, periods: chosen, chits: chosenChits }
   audit('feeding_plans', code, 'UPDATE', plan, next, 'Feeding plan updated')
   Object.assign(plan, next)
   save()
@@ -324,7 +328,6 @@ const summary = (st) => ({
   student_code: st.student_code,
   first_name: st.first_name,
   last_name: st.last_name,
-  class_name: st.class_name,
   plan_code: planOf(st)?.code ?? null,
   plan_label: planOf(st)?.label ?? null,
 })
@@ -468,7 +471,6 @@ function details() {
       student_code: st.student_code,
       first_name: st.first_name,
       last_name: st.last_name,
-      class_name: st.class_name,
       recorded_by: r.recorded_by,
       recorded_by_name: by ? by.full_name || by.email : null,
       plan_code: r.plan_code ?? null,
@@ -483,7 +485,6 @@ function filterRecords(filters) {
       (!filters.from || r.service_date >= filters.from) &&
       (!filters.to || r.service_date <= filters.to) &&
       (!filters.mealPeriod || r.meal_period === filters.mealPeriod) &&
-      (!filters.className || r.class_name === filters.className) &&
       (!filters.planCode || (filters.planCode === 'none' ? r.plan_code === null : r.plan_code === filters.planCode)) &&
       (filters.status !== 'active' || !r.voided) &&
       (filters.status !== 'voided' || r.voided) &&
@@ -512,6 +513,22 @@ export async function fetchAllRecords(filters, onProgress) {
   )
   onProgress?.(rows.length)
   return rows
+}
+
+export async function studentMealCounts({ from, to, search }, page = 0, pageSize = PAGE_SIZE) {
+  await delay()
+  requireRole('supervisor', 'admin')
+  const s = db()
+  const fed = new Map()
+  for (const r of s.records) {
+    if (r.voided || r.service_date < from || r.service_date > to) continue
+    fed.set(r.student_id, (fed.get(r.student_id) ?? 0) + 1)
+  }
+  const rows = s.students
+    .filter((st) => (st.active || fed.has(st.id)) && (!search || matchesSearch(st, search)))
+    .sort((a, b) => byName(a, b) || a.student_code.localeCompare(b.student_code))
+    .map((st) => ({ student_code: st.student_code, first_name: st.first_name, last_name: st.last_name, times_fed: fed.get(st.id) ?? 0 }))
+  return { data: rows.slice(page * pageSize, (page + 1) * pageSize), count: rows.length }
 }
 
 function slotTaken(s, studentId, mealPeriod, serviceDate, exceptId) {
@@ -584,11 +601,11 @@ export async function addRecord({ studentCode, mealPeriod, serviceDate, reason }
 const planMatches = (st, planCode) =>
   !planCode || (planCode === 'none' ? !st.plan_code : st.plan_code === planCode)
 
-export async function listStudents({ search, className, includeInactive, planCode }, page = 0) {
+export async function listStudents({ search, includeInactive, planCode }, page = 0) {
   await delay()
   requireRole('supervisor', 'admin')
   const rows = db()
-    .students.filter((s) => (includeInactive || s.active) && (!className || s.class_name === className))
+    .students.filter((s) => includeInactive || s.active)
     .filter((s) => planMatches(s, planCode))
     .filter((s) => !search || matchesSearch(s, search))
     .sort(byName)
@@ -603,19 +620,11 @@ export async function countStudentsByPlan(plans, { includeInactive } = {}) {
   )
 }
 
-export async function listClasses() {
-  requireRole('supervisor', 'admin')
-  return [...new Set(db().students.map((s) => s.class_name).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true }),
-  )
-}
-
 function validateStudent(st) {
   const clean = {
     student_code: normalizeStudentCode(st.student_code),
     first_name: String(st.first_name ?? '').trim(),
     last_name: String(st.last_name ?? '').trim(),
-    class_name: String(st.class_name ?? '').trim(),
     active: st.active ?? true,
   }
   if ('plan_code' in st) {
@@ -659,7 +668,7 @@ export async function importStudents(rows, onProgress) {
   const s = db()
   const cleaned = rows.map(validateStudent) // all-or-nothing: validate everything first
   const totals = { total: rows.length, inserted: 0, updated: 0, unchanged: 0 }
-  const fields = ['first_name', 'last_name', 'class_name', 'active', ...(rows.some((r) => 'plan_code' in r) ? ['plan_code'] : [])]
+  const fields = ['first_name', 'last_name', 'active', ...(rows.some((r) => 'plan_code' in r) ? ['plan_code'] : [])]
   const now = new Date().toISOString()
   for (const row of cleaned) {
     const existing = s.students.find((st) => st.student_code === row.student_code)

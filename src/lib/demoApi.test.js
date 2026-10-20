@@ -25,7 +25,7 @@ describe('demo mode backend', () => {
     const dup = await demo.checkIn('DEMO0001', 'lunch', 'manual')
     expect(dup.status).toBe('duplicate')
     expect(dup.served_count).toBe(1)
-    expect((await demo.checkIn('DEMO0001', 'breakfast')).status).toBe('ok')
+    expect((await demo.checkIn('DEMO0001', 'supper')).status).toBe('ok')
     expect((await demo.checkIn('NOPE', 'lunch')).status).toBe('unknown_student')
     expect((await demo.checkIn('DEMO0059', 'lunch')).status).toBe('inactive_student')
     expect((await demo.checkIn('bad id!', 'lunch')).status).toBe('invalid_id')
@@ -70,8 +70,25 @@ describe('demo mode feeding plans', () => {
     await signInAs('tablet@demo.school')
     expect((await demo.checkIn(once, 'breakfast')).status).toBe('not_on_plan')
     expect((await demo.checkIn(once, 'lunch')).status).toBe('ok')
-    expect((await demo.checkIn(twice, 'supper')).status).toBe('not_on_plan')
+    expect(await demo.checkIn(once, 'supper')).toMatchObject({ status: 'plan_limit_reached', meals_today: 1 })
+    expect((await demo.checkIn(twice, 'breakfast')).status).toBe('not_on_plan')
+    for (const p of ['lunch', 'supper']) expect((await demo.checkIn(twice, p)).status).toBe('ok')
     for (const p of ['breakfast', 'lunch', 'supper']) expect((await demo.checkIn(thrice, p)).status).toBe('ok')
+  })
+
+  it('assigns chit colours per plan and meal, and lets admins change them', async () => {
+    await signInAs('admin@demo.school')
+    const chits = Object.fromEntries((await demo.getFeedingPlans()).map((p) => [p.code, p.chits]))
+    expect(chits).toEqual({
+      once: { lunch: 'blue', supper: 'blue' },
+      twice: { lunch: 'pink', supper: 'yellow' },
+      thrice: { breakfast: 'blue', lunch: 'blue', supper: 'blue' },
+    })
+    await demo.setFeedingPlan({ code: 'twice', label: 'Twice a day', mealsPerDay: 2, periods: ['lunch', 'supper'], chits: { lunch: 'green', supper: 'yellow' } })
+    expect((await demo.getFeedingPlans()).find((p) => p.code === 'twice').chits).toEqual({ lunch: 'green', supper: 'yellow' })
+    await expect(
+      demo.setFeedingPlan({ code: 'twice', label: 'Twice a day', mealsPerDay: 2, periods: ['lunch', 'supper'], chits: { lunch: 'tartan' } }),
+    ).rejects.toThrow(/chit/)
   })
 
   it('enforces the daily limit when a plan allows a choice', async () => {
@@ -92,5 +109,18 @@ describe('demo mode feeding plans', () => {
     expect(summary.map((s) => s.plan_label)).toEqual(['Once a day', 'Twice a day', 'Thrice a day', 'No plan set'])
     // Seeded history respects the plans: nobody on "once" ate breakfast.
     expect(summary[0].served.breakfast).toBeUndefined()
+  })
+
+  it('counts times fed per student, including students fed zero times', async () => {
+    await signInAs('supervisor@demo.school')
+    const { data, count } = await demo.studentMealCounts({ from: '2000-01-01', to: '2999-12-31' }, 0, 1000)
+    expect(count).toBe(data.length)
+    expect(data.every((r) => Object.keys(r).join() === 'student_code,first_name,last_name,times_fed')).toBe(true)
+    const served = (await demo.listRecords({ from: '2000-01-01', to: '2999-12-31', status: 'active' }, 0)).count
+    expect(data.reduce((n, r) => n + r.times_fed, 0)).toBe(served)
+    const one = await demo.studentMealCounts({ from: '2000-01-01', to: '2999-12-31', search: data[0].student_code })
+    expect(one.data).toEqual([data[0]])
+    await signInAs('tablet@demo.school')
+    await expect(demo.studentMealCounts({ from: '2000-01-01', to: '2999-12-31' })).rejects.toThrow()
   })
 })

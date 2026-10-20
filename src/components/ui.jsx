@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef } from 'react'
 
 const BUTTON_VARIANTS = {
-  primary: 'bg-teal-700 text-white hover:bg-teal-800 disabled:bg-teal-700/50',
+  primary: 'bg-blue-700 text-white hover:bg-blue-800 disabled:bg-blue-700/50',
   secondary: 'bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50 disabled:text-slate-400',
   danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-600/50',
   ghost: 'text-slate-700 hover:bg-slate-200/70 disabled:text-slate-400',
-  dark: 'text-slate-200 hover:bg-white/10 hover:text-white',
+  dark: 'text-blue-100 hover:bg-white/10 hover:text-white',
 }
 
 const BUTTON_SIZES = {
@@ -19,7 +19,7 @@ export function Button({ variant = 'primary', size = 'md', className = '', type 
   return (
     <button
       type={type}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 disabled:cursor-not-allowed ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${className}`}
       {...props}
     />
   )
@@ -40,14 +40,14 @@ export function Field({ label, hint, children, className = '' }) {
 }
 
 export const inputClass =
-  'block w-full rounded-lg border-0 bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-teal-600 disabled:bg-slate-100'
+  'block w-full rounded-lg border-0 bg-white px-3 py-2 text-slate-900 ring-1 ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-600 disabled:bg-slate-100'
 
 export function Alert({ tone = 'error', children, className = '' }) {
   const tones = {
     error: 'bg-red-50 text-red-800 ring-red-200',
     warning: 'bg-amber-50 text-amber-900 ring-amber-200',
     success: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
-    info: 'bg-sky-50 text-sky-900 ring-sky-200',
+    info: 'bg-blue-50 text-blue-900 ring-blue-200',
   }
   return (
     <div role={tone === 'error' ? 'alert' : 'status'} className={`rounded-lg px-4 py-3 text-sm ring-1 ${tones[tone]} ${className}`}>
@@ -67,7 +67,7 @@ export function Spinner({ className = 'h-5 w-5' }) {
 
 export function FullPageSpinner() {
   return (
-    <div className="flex min-h-screen items-center justify-center text-teal-700">
+    <div className="flex min-h-screen items-center justify-center text-blue-700">
       <Spinner className="h-10 w-10" />
     </div>
   )
@@ -92,7 +92,7 @@ export function Modal({ open, onClose, title, children, wide = false }) {
         e.preventDefault()
         onClose()
       }}
-      className={`m-auto w-[calc(100%-2rem)] ${wide ? 'max-w-3xl' : 'max-w-lg'} rounded-2xl bg-white p-0 shadow-xl backdrop:bg-slate-900/50`}
+      className={`m-auto w-[calc(100%-2rem)] ${wide ? 'max-w-3xl' : 'max-w-lg'} rounded-2xl bg-white p-0 shadow-xl backdrop:bg-blue-950/50`}
     >
       {open && (
         <div className="p-6">
@@ -141,7 +141,7 @@ export function Badge({ tone = 'slate', children }) {
     green: 'bg-emerald-100 text-emerald-800',
     amber: 'bg-amber-100 text-amber-900',
     red: 'bg-red-100 text-red-800',
-    blue: 'bg-sky-100 text-sky-800',
+    blue: 'bg-blue-100 text-blue-800',
   }
   return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${tones[tone]}`}>{children}</span>
 }

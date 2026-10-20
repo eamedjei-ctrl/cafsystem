@@ -13,7 +13,7 @@ clear confirmation. Staff can search, correct and export the records.
 | Area | What it does |
 | --- | --- |
 | Check-in screen | Large-print status for a busy line. Shows a green confirmation with the student's name, an amber "already served" notice for duplicates (with the original time), and a red error for unknown, invalid or inactive IDs. Plays a different beep for each outcome. Includes manual name/ID lookup, a served counter, an offline warning and full-screen mode, and keeps the screen awake. |
-| Meal records | Filter by date range, meal period, class, feeding plan, student and status. Per-period totals, a "By feeding plan" breakdown, pagination and CSV export. |
+| Meal records | Filter by date range, meal period, feeding plan, student and status. Per-period totals, a "By feeding plan" breakdown, pagination and CSV export. |
 | Corrections | Supervisors can change a record's meal period or date, void or restore it, or add a missed record. A reason is always required and goes into the audit log. |
 | Feeding plans (sections) | Students are grouped into **Once a day**, **Twice a day** and **Thrice a day**. Each plan sets which meal periods it covers and how many meals per day are allowed. Check-in refuses a meal outside the student's plan, or beyond the daily limit, with a clear message. Admins can edit the plans. |
 | Students | View the roster by section (tabs with counts). Admins can add, edit or deactivate students, assign plans, and import a roster CSV with a `plan` column. |

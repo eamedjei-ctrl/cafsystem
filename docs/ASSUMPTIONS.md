@@ -11,16 +11,16 @@
 | Day boundary | Midnight in the school's time zone (`app_settings.timezone`) | SQL `update public.app_settings …` |
 | Duplicate handling | A duplicate is shown as a warning and no record is added. Second servings are not tracked. | `check_in()` |
 | Inactive students | Cannot be checked in (red message, no record) | `check_in()` |
-| Feeding plans | Each student is on one plan: once (Lunch), twice (Breakfast and Lunch) or thrice (Breakfast, Lunch and Supper) a day. Students with no plan are not restricted. Each meal record keeps the plan the student was on when served. | Feeding plans page; `check_in()` |
+| Feeding plans | Each student is on one plan: once (one meal, Lunch or Supper; blue chit), twice (Lunch with a pinkish-red chit and Supper with a yellow chit) or thrice (Breakfast, Lunch and Supper; blue chit) a day. Students with no plan are not restricted. Each meal record keeps the plan the student was on when served. | Feeding plans page; `check_in()` |
 | Plan overrides | Supervisors adding a missed record are not limited by the plan | `add_meal_record()` |
 | Corrections | Supervisors and admins can correct; a reason is mandatory; records are voided, never deleted | `correct_meal_record()` |
 | Missed-record dates | Any past or current date; future dates are rejected | `add_meal_record()` |
 | Staff onboarding | Staff are invited via the Supabase dashboard; admins then assign roles in the app | `docs/SETUP.md` |
-| Data retained | Student ID, first and last name, class, feeding plan, active flag; nothing else | `students` table |
+| Data retained | Student ID, first and last name, feeding plan, active flag; nothing else | `students` table |
 
 ## Needs school-specific information before go-live
 
-1. **Time zone** and school name (`app_settings`).
+1. **Time zone** (`app_settings`). School name is set to Valley View University.
 2. **Meal periods**: names and times, and whether there are more or fewer than three.
 3. **Feeding plans**: which meals each section (once, twice, thrice) gets, and which section each
    student is in. This normally comes from boarding/day status or fees records.

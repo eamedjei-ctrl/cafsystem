@@ -30,16 +30,16 @@ beforeEach(async () => {
   await db.sql(`delete from public.meal_records`)
   await db.sql(`delete from public.students`)
   await db.sql(`update public.meal_periods set active = true`)
-  await db.addStudent('S1001', 'Ama', 'Mensah', '5A')
-  await db.addStudent('S1002', 'Kofi', 'Owusu', '5B')
-  await db.addStudent('S1003', 'Esi', 'Boateng', '6A', false)
+  await db.addStudent('S1001', 'Ama', 'Mensah')
+  await db.addStudent('S1002', 'Kofi', 'Owusu')
+  await db.addStudent('S1003', 'Esi', 'Boateng', false)
 })
 
 describe('check_in rules', () => {
   it('records a check-in and returns the student name', async () => {
     const r = await checkIn(tablet, 'S1001')
     expect(r.status).toBe('ok')
-    expect(r.student).toMatchObject({ first_name: 'Ama', last_name: 'Mensah', class_name: '5A' })
+    expect(r.student).toEqual({ student_code: 'S1001', first_name: 'Ama', last_name: 'Mensah', plan_code: null, plan_label: null })
     expect(r.served_count).toBe(1)
 
     const rows = await db.sql(
@@ -226,7 +226,7 @@ describe('corrections and audit trail', () => {
   })
 
   it('makes the audit log append-only, even for the database owner', async () => {
-    await db.sql(`update public.students set class_name = '5C' where student_code = 'S1001'`)
+    await db.sql(`update public.students set first_name = 'Amma' where student_code = 'S1001'`)
     await expect(db.sql(`update public.audit_log set reason = 'tampered'`)).rejects.toThrow(/cannot be modified/)
     await expect(db.sql(`delete from public.audit_log`)).rejects.toThrow(/cannot be modified/)
     await expect(db.sql(`truncate public.audit_log`)).rejects.toThrow(/cannot be modified/)

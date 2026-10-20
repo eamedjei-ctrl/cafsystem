@@ -11,6 +11,7 @@ import StudentsPage from './pages/StudentsPage'
 import StaffPage from './pages/StaffPage'
 import AuditPage from './pages/AuditPage'
 import PlansPage from './pages/PlansPage'
+import TimesFedPage from './pages/TimesFedPage'
 import NoAccessPage from './pages/NoAccessPage'
 
 /** Gate a route on a permission. The database enforces the same rules. */
@@ -68,6 +69,14 @@ export default function App() {
           element={
             <RequirePermission permission="viewRecords">
               <RecordsPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/times-fed"
+          element={
+            <RequirePermission permission="viewRecords">
+              <TimesFedPage />
             </RequirePermission>
           }
         />

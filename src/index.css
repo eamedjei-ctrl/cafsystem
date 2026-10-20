@@ -20,5 +20,23 @@ html {
 }
 
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  @apply bg-blue-50 text-slate-900 antialiased;
+}
+
+/* Valley View University seal as a faint watermark on every screen. It sits
+   above the content but ignores clicks, so it never blocks anything. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: url('/brand/vvu-logo.png') center / min(70vmin, 520px) no-repeat;
+  opacity: 0.05;
+}
+
+@media print {
+  body::after {
+    display: none;
+  }
 }

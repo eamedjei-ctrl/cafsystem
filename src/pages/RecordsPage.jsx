@@ -8,7 +8,6 @@ import {
   feedingPlanSummary,
   fetchAllRecords,
   getSchoolToday,
-  listClasses,
   listRecords,
   searchStudents,
 } from '../lib/api'
@@ -35,10 +34,9 @@ export default function RecordsPage() {
   const canExport = can(role, 'exportRecords')
 
   const [today, setToday] = useState(null)
-  const [filters, setFilters] = useState({ from: '', to: '', mealPeriod: '', className: '', planCode: '', search: '', status: 'active' })
+  const [filters, setFilters] = useState({ from: '', to: '', mealPeriod: '', planCode: '', search: '', status: 'active' })
   const search = useDebounced(filters.search)
   const [page, setPage] = useState(0)
-  const [classes, setClasses] = useState([])
 
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
@@ -58,7 +56,6 @@ export default function RecordsPage() {
         setFilters((f) => ({ ...f, from: d, to: d }))
       })
       .catch((e) => setError(e.message))
-    listClasses().then(setClasses).catch(() => {})
   }, [])
 
   const effective = { ...filters, search }
@@ -99,7 +96,7 @@ export default function RecordsPage() {
     try {
       const all = await fetchAllRecords(effective, setExporting)
       const csv = toCsv(
-        ['Service date', 'Meal period', 'Check-in time', 'Student ID', 'First name', 'Last name', 'Class', 'Feeding plan', 'Method', 'Recorded by', 'Status', 'Void reason'],
+        ['Service date', 'Meal period', 'Check-in time', 'Student ID', 'First name', 'Last name', 'Feeding plan', 'Method', 'Recorded by', 'Status', 'Void reason'],
         all.map((r) => [
           r.service_date,
           r.meal_period_label,
@@ -107,7 +104,6 @@ export default function RecordsPage() {
           r.student_code,
           r.first_name,
           r.last_name,
-          r.class_name,
           r.plan_label ?? 'No plan',
           METHOD_LABELS[r.method],
           r.recorded_by_name,
@@ -150,7 +146,7 @@ export default function RecordsPage() {
 
       {/* Filters */}
       <Card className="mb-4 p-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <Field label="From">
             {(id) => (
               <input id={id} type="date" className={inputClass} value={filters.from} max={filters.to || today || undefined} onChange={(e) => update({ from: e.target.value })} />
@@ -168,18 +164,6 @@ export default function RecordsPage() {
                 {periods.map((p) => (
                   <option key={p.code} value={p.code}>
                     {p.label}
-                  </option>
-                ))}
-              </select>
-            )}
-          </Field>
-          <Field label="Class">
-            {(id) => (
-              <select id={id} className={inputClass} value={filters.className} onChange={(e) => update({ className: e.target.value })}>
-                <option value="">All classes</option>
-                {classes.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
                   </option>
                 ))}
               </select>
@@ -259,13 +243,12 @@ export default function RecordsPage() {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <thead className="bg-blue-50 text-left text-xs font-semibold uppercase tracking-wide text-blue-900">
               <tr>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Time</th>
                 <th className="px-4 py-3">Period</th>
                 <th className="px-4 py-3">Student</th>
-                <th className="px-4 py-3">Class</th>
                 <th className="px-4 py-3">Plan</th>
                 <th className="px-4 py-3">Method</th>
                 <th className="px-4 py-3">Recorded by</th>
@@ -276,13 +259,13 @@ export default function RecordsPage() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-10 text-center text-teal-700">
+                  <td colSpan={9} className="px-4 py-10 text-center text-blue-700">
                     <Spinner className="mx-auto h-8 w-8" />
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-10 text-center text-slate-500">
+                  <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
                     No records match these filters.
                   </td>
                 </tr>
@@ -298,7 +281,6 @@ export default function RecordsPage() {
                       </div>
                       <div className="text-xs text-slate-500">{r.student_code}</div>
                     </td>
-                    <td className="px-4 py-3">{r.class_name}</td>
                     <td className="whitespace-nowrap px-4 py-3">{r.plan_label ?? '—'}</td>
                     <td className="px-4 py-3">
                       <Badge tone={r.method === 'scan' ? 'slate' : r.method === 'manual' ? 'blue' : 'amber'}>
@@ -378,7 +360,7 @@ function PlanSummary({ summary, periods, selected, onSelect }) {
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+          <thead className="bg-blue-50 text-left text-xs font-semibold uppercase tracking-wide text-blue-900">
             <tr>
               <th className="px-4 py-2">Section</th>
               <th className="px-4 py-2 text-right">Students</th>
@@ -398,10 +380,10 @@ function PlanSummary({ summary, periods, selected, onSelect }) {
                 <tr
                   key={code}
                   onClick={() => onSelect(selected === code ? '' : code)}
-                  className={`cursor-pointer hover:bg-teal-50 ${selected === code ? 'bg-teal-50' : ''}`}
+                  className={`cursor-pointer hover:bg-blue-50 ${selected === code ? 'bg-blue-50' : ''}`}
                 >
                   <td className="px-4 py-2 font-medium text-slate-900">
-                    {s.meals_per_day && <span className="mr-2 font-black text-teal-700">{s.meals_per_day}×</span>}
+                    {s.meals_per_day && <span className="mr-2 font-black text-blue-700">{s.meals_per_day}×</span>}
                     {s.plan_label}
                   </td>
                   <td className="px-4 py-2 text-right">{s.enrolled}</td>
@@ -604,7 +586,7 @@ function AddRecordDialog({ open, periods, today, onClose, onDone }) {
               <span className="font-semibold">
                 {student.first_name} {student.last_name}
               </span>{' '}
-              ({student.student_code}) {student.class_name && `· ${student.class_name}`}
+              ({student.student_code})
             </span>
             <Button variant="ghost" size="sm" onClick={() => setStudent(null)}>
               Change
@@ -619,8 +601,8 @@ function AddRecordDialog({ open, periods, today, onClose, onDone }) {
                   <ul className="mt-1 max-h-48 overflow-y-auto rounded-lg ring-1 ring-slate-200">
                     {matches.map((m) => (
                       <li key={m.student_code}>
-                        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-teal-50" onClick={() => setStudent(m)}>
-                          {m.last_name}, {m.first_name} · {m.student_code} {m.class_name && `· ${m.class_name}`}
+                        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50" onClick={() => setStudent(m)}>
+                          {m.last_name}, {m.first_name} · {m.student_code}
                         </button>
                       </li>
                     ))}

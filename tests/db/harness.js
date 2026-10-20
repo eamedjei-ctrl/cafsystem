@@ -80,11 +80,11 @@ export class TestDb {
     return { id, email }
   }
 
-  async addStudent(code, first, last, className = '5A', active = true) {
+  async addStudent(code, first, last, active = true) {
     const [row] = await this.sql(
-      `insert into public.students (student_code, first_name, last_name, class_name, active)
-       values ($1, $2, $3, $4, $5) returning id`,
-      [code, first, last, className, active],
+      `insert into public.students (student_code, first_name, last_name, active)
+       values ($1, $2, $3, $4) returning id`,
+      [code, first, last, active],
     )
     return row.id
   }

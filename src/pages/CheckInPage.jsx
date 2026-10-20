@@ -8,6 +8,7 @@ import { useScanner } from '../lib/useScanner'
 import { isValidStudentCode, normalizeStudentCode } from '../lib/studentCode'
 import { suggestMealPeriod } from '../lib/mealPeriods'
 import { describeCheckIn, formatTime, fullName } from '../lib/checkinMessages'
+import { CHIT_COLORS, chitFor } from '../lib/chits'
 import { playFeedback, unlockAudio } from '../lib/feedback'
 import { Alert, Button, Modal, Spinner, inputClass } from '../components/ui'
 
@@ -75,7 +76,7 @@ function useWakeLock() {
 }
 
 export default function CheckInPage() {
-  const { settings, periods, role, profile, signOut } = useAuth()
+  const { settings, periods, plans, role, profile, signOut } = useAuth()
   const timeZone = settings.timezone
   const activePeriods = periods.filter((p) => p.active)
   const online = useOnline()
@@ -154,6 +155,7 @@ export default function CheckInPage() {
         try {
           const result = await checkIn(code, period.code, method)
           const message = describeCheckIn(result, timeZone)
+          if (result.status === 'ok') message.chit = chitFor(plans, result.student.plan_code, result.meal_period)
           show(message)
           if ('served_count' in result) setServedCount(result.served_count)
           setRecent((r) =>
@@ -211,11 +213,12 @@ export default function CheckInPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-900 text-white" onPointerDown={unlockAudio}>
+    <div className="flex min-h-screen flex-col bg-blue-950 text-white" onPointerDown={unlockAudio}>
       {/* Top bar */}
       <header className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <img src="/brand/vvu-logo.png" alt="" className="h-12 w-12" />
         <div className="mr-2">
-          <div className="text-xs uppercase tracking-wider text-slate-400">{settings.school_name}</div>
+          <div className="text-xs uppercase tracking-wider text-blue-200">{settings.school_name}</div>
           <div className="text-lg font-bold">Meal check-in</div>
         </div>
         <div role="radiogroup" aria-label="Meal period" className="flex flex-wrap gap-2">
@@ -237,7 +240,7 @@ export default function CheckInPage() {
           {servedCount !== null && (
             <div className="rounded-xl bg-white/10 px-4 py-2 text-center" aria-live="polite">
               <div className="text-2xl font-bold leading-none">{servedCount}</div>
-              <div className="text-xs text-slate-300">served</div>
+              <div className="text-xs text-blue-200">served</div>
             </div>
           )}
           <Button variant="secondary" size="lg" onClick={() => setLookupOpen(true)}>
@@ -252,9 +255,9 @@ export default function CheckInPage() {
         </div>
       )}
       {suggested && (
-        <div className="flex flex-wrap items-center justify-center gap-3 bg-sky-700 px-4 py-2 text-sm">
+        <div className="flex flex-wrap items-center justify-center gap-3 bg-blue-700 px-4 py-2 text-sm">
           It is now {suggested.label} time.
-          <button onClick={() => choosePeriod(suggested.code)} className="rounded-lg bg-white px-3 py-1 font-semibold text-sky-800">
+          <button onClick={() => choosePeriod(suggested.code)} className="rounded-lg bg-white px-3 py-1 font-semibold text-blue-800">
             Switch to {suggested.label}
           </button>
         </div>
@@ -277,6 +280,11 @@ export default function CheckInPage() {
               </div>
               <div className="text-4xl font-extrabold leading-tight md:text-6xl">{feedback.title}</div>
               {feedback.subtitle && <div className="mt-2 text-2xl font-semibold opacity-90">{feedback.subtitle}</div>}
+              {feedback.chit && (
+                <div className={`mt-5 rounded-2xl px-8 py-4 text-3xl font-extrabold shadow-lg ring-4 ring-white/70 ${CHIT_COLORS[feedback.chit].swatch}`}>
+                  Collect {CHIT_COLORS[feedback.chit].label.toLowerCase()} chit
+                </div>
+              )}
               <div className="mt-4 max-w-2xl text-xl md:text-2xl">{feedback.detail}</div>
             </div>
           ) : (
@@ -289,9 +297,10 @@ export default function CheckInPage() {
                     ▥
                   </div>
                   <div className="mt-4 text-4xl font-bold md:text-5xl">Ready to scan</div>
-                  <div className="mt-2 text-xl text-slate-300">
+                  <div className="mt-2 text-xl text-blue-200">
                     {period.label} · scan a student ID card
                   </div>
+                  <ChitLegend plans={plans} period={period} />
                 </>
               ) : (
                 <div className="text-3xl font-bold">Select a meal period to begin</div>
@@ -338,7 +347,7 @@ export default function CheckInPage() {
           Full screen
         </Button>
         {can(role, 'viewRecords') && (
-          <Link to="/records" className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10 hover:text-white">
+          <Link to="/records" className="rounded-lg px-4 py-2 text-sm font-semibold text-blue-100 hover:bg-white/10 hover:text-white">
             Dashboard
           </Link>
         )}
@@ -418,7 +427,7 @@ function ManualLookup({ open, onClose, onPick, periodLabel }) {
         {error && <Alert>{error}</Alert>}
         <div className="max-h-[50vh] space-y-2 overflow-y-auto">
           {searching && results.length === 0 && (
-            <div className="flex justify-center py-6 text-teal-700">
+            <div className="flex justify-center py-6 text-blue-700">
               <Spinner className="h-8 w-8" />
             </div>
           )}
@@ -426,7 +435,7 @@ function ManualLookup({ open, onClose, onPick, periodLabel }) {
             <button
               key={s.student_code}
               onClick={() => onPick(s.student_code)}
-              className="flex w-full items-center justify-between gap-4 rounded-xl bg-slate-50 px-4 py-4 text-left ring-1 ring-slate-200 hover:bg-teal-50 hover:ring-teal-300"
+              className="flex w-full items-center justify-between gap-4 rounded-xl bg-slate-50 px-4 py-4 text-left ring-1 ring-slate-200 hover:bg-blue-50 hover:ring-blue-300"
             >
               <span>
                 <span className="block text-lg font-semibold text-slate-900">
@@ -434,11 +443,10 @@ function ManualLookup({ open, onClose, onPick, periodLabel }) {
                 </span>
                 <span className="text-sm text-slate-600">
                   ID {s.student_code}
-                  {s.class_name && ` · Class ${s.class_name}`}
                   {s.plan_label && ` · ${s.plan_label}`}
                 </span>
               </span>
-              <span className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white">Check in</span>
+              <span className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white">Check in</span>
             </button>
           ))}
           {!searching && query.trim().length >= 2 && results.length === 0 && !error && (
@@ -457,5 +465,20 @@ function ManualLookup({ open, onClose, onPick, periodLabel }) {
         </p>
       </div>
     </Modal>
+  )
+}
+
+/** Which chit each plan hands in for the selected meal period. */
+function ChitLegend({ plans, period }) {
+  const items = plans.map((p) => ({ plan: p, color: chitFor(plans, p.code, period.code) })).filter((i) => i.color)
+  if (!items.length) return null
+  return (
+    <ul className="mt-6 flex flex-wrap justify-center gap-3" aria-label={`${period.label} chits`}>
+      {items.map(({ plan, color }) => (
+        <li key={plan.code} className={`rounded-xl px-4 py-2 text-base font-semibold ${CHIT_COLORS[color].swatch}`}>
+          {plan.label}: {CHIT_COLORS[color].label}
+        </li>
+      ))}
+    </ul>
   )
 }

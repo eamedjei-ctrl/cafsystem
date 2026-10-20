@@ -27,9 +27,10 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-[calc(100vh-2rem)] items-center justify-center p-4">
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-5 rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
-        <div>
+        <div className="text-center">
+          <img src="/brand/vvu-logo.png" alt="Valley View University" className="mx-auto mb-3 h-24 w-24" />
           <h1 className="text-2xl font-bold">Cafeteria meals</h1>
-          <p className="mt-1 text-sm text-slate-600">Staff sign-in</p>
+          <p className="mt-1 text-sm text-slate-600">Valley View University · Staff sign-in</p>
         </div>
         {error && <Alert>{error}</Alert>}
         <Field label="Email">

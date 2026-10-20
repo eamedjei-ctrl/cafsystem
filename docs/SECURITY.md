@@ -8,8 +8,8 @@
    restrictions.
 2. **Least privilege.** The cafeteria tablet's role can check students in and look up names, and
    nothing else. It cannot list the roster, read meal history or export.
-3. **Data minimisation.** A student record holds only the ID code, first and last name, class and
-   an active flag.
+3. **Data minimisation.** A student record holds only the ID code, first and last name, feeding plan
+   and an active flag.
 4. **No silent changes.** Meal records cannot be edited or deleted directly by any app user.
    Corrections go through functions that require a reason and write to an append-only audit log.
 
@@ -39,7 +39,7 @@ How this is implemented, in `supabase/migrations/20261019000000_initial_schema.s
   with an explicit role check.
 - The `meal_record_details` view uses `security_invoker = true`, so it applies the caller's RLS.
 - `search_students` returns at most 25 active students, needs 2 or more characters, escapes LIKE
-  wildcards, and only returns ID, name and class.
+  wildcards, and only returns ID, name and feeding plan.
   - Trade-off: someone with the tablet account could still discover names by trying many searches.
     That is the minimum needed for manual lookup. Limit who knows the tablet password and
     deactivate it if it is lost.

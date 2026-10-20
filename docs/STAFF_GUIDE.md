@@ -33,7 +33,7 @@
 
    The result clears automatically after a few seconds, or when you tap it.
 4. **No card or the card won't scan?** Tap **Manual lookup**, type at least two letters of the
-   name or ID, and tap **Check in** next to the right student. Check the class shown, because
+   name or ID, and tap **Check in** next to the right student. Check the student ID shown, because
    names can repeat.
 5. The **served** counter shows how many students have checked in for this period today, across
    all devices. The right-hand list shows recent scans on this tablet only.
@@ -47,32 +47,37 @@ fires twice is ignored for 3 seconds, so it won't show a false "already served".
 
 Every student belongs to one section:
 
-| Section | Default meals |
-| --- | --- |
-| Once a day | Lunch |
-| Twice a day | Breakfast and Lunch |
-| Thrice a day | Breakfast, Lunch and Supper |
+| Section | Meals | Chit |
+| --- | --- | --- |
+| Once a day | One meal: Lunch **or** Supper | Blue |
+| Twice a day | Lunch and Supper | Lunch: pinkish red · Supper: yellow |
+| Thrice a day | Breakfast, Lunch and Supper | Blue at every meal |
 
-The green confirmation shows the student's section, for example "Class 5A · Twice a day".
-Students with **no plan** are not restricted. They appear under the "No plan" tab on the Students
-page so an admin can assign one.
+The green confirmation shows the student's section, for example "Twice a day", and the chit to
+collect, for example "Collect pinkish red chit". Before the first scan, the screen also lists which
+chit each section hands in for the selected meal.
+Students with **no plan** are not restricted. Edit a student on the Students page to assign one.
 
 Admins can change a section on the **Feeding plans** page:
 
 - **Meal periods included:** which meals the section can be served.
+- **Chit colour:** the colour of chit students in that section hand in at each meal.
 - **Meals allowed per day:** a limit. If you tick more periods than the limit, students can choose.
-  For example, ticking Breakfast, Lunch and Supper with a limit of 1 means any one meal a day.
+  For example, Once a day ticks Lunch and Supper with a limit of 1, so students eat at either one.
 
 Changes apply to the next scan and are recorded in the audit log.
 
 ## Supervisors: records, corrections and export
 
-- **Meal records** shows today's records by default. Use the filters for dates, meal period, class,
+- **Meal records** shows today's records by default. Use the filters for dates, meal period,
   feeding plan, student name or ID, and status (served or voided). The tiles show totals per period.
   The **By feeding plan** table shows, for each section, how many students are on it and how many
   meals they were served in each period. Click a row to filter the list to that section.
 - **Export CSV** downloads every record that matches the current filters, not just the visible
   page. The file opens in Excel or Google Sheets.
+- **Times fed** is a table of every student's name, ID and the number of meals they were served
+  in the chosen dates (today by default). Students who were not fed show 0. Voided records are not
+  counted. **Export CSV** on that page downloads the whole table.
 - **Edit** changes a record's meal period or date, for example when the tablet was left on
   Breakfast during Lunch.
 - **Void** cancels a record that should not exist, such as a wrong card or a test scan. The record
@@ -104,7 +109,6 @@ data. The app always keeps at least one active administrator.
    | `student_id` | yes | Exactly what the ID card's barcode/QR encodes. 1–32 letters, digits, `-` or `_`. Not case-sensitive. |
    | `first_name` | yes | |
    | `last_name` | yes | `surname` is also accepted |
-   | `class` | no | Homeroom, form or grade. `grade`/`form`/`homeroom` headers also work. |
    | `plan` | no | `once`, `twice` or `thrice` (or `1`/`2`/`3`, or the plan name). Blank = no plan. If the column is missing, each student's current plan is kept. |
    | `active` | no | `yes`/`no` (default yes) |
 
@@ -114,7 +118,7 @@ data. The app always keeps at least one active administrator.
    row has a problem (missing name, bad ID, duplicate ID), the file is listed with line numbers
    and nothing is imported.
 3. Click **Import**. Students are matched by `student_id`: new IDs are added, and existing ones are
-   updated (name, class, active).
+   updated (name, active). Any other columns, such as an old `class` column, are ignored.
 4. If the file has a `plan` column, each student's feeding plan is set from it (blank = no plan).
 5. Students who are **not** in the file are left unchanged. To remove leavers, include them with
    `active` set to `no`, or deactivate them on the Students page. Students are never deleted, so

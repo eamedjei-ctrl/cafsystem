@@ -6,6 +6,7 @@ import { escapeCell, parseCsv, toCsv } from './csv'
 import { can, homePath } from './permissions'
 import { describeCheckIn } from './checkinMessages'
 import { parseRoster } from './roster'
+import { CHIT_COLORS, chitFor } from './chits'
 
 /** Simulate typing a string, `gap` ms per key, followed by a terminator. */
 function type(buffer, text, { start = 0, gap = 10, end = 'Enter' } = {}) {
@@ -147,7 +148,7 @@ describe('roster import validation', () => {
   it('maps common header names and normalises IDs', () => {
     const { rows, errors } = parseRoster('Student ID,First Name,Surname,Class\ns1,Ama,Mensah,5A\n')
     expect(errors).toEqual([])
-    expect(rows).toEqual([{ student_code: 'S1', first_name: 'Ama', last_name: 'Mensah', class_name: '5A', active: true }])
+    expect(rows).toEqual([{ student_code: 'S1', first_name: 'Ama', last_name: 'Mensah', active: true }])
   })
 
   it('reports missing columns', () => {
@@ -193,7 +194,7 @@ describe('permissions (UI)', () => {
 })
 
 describe('check-in messages', () => {
-  const student = { student_code: 'S1', first_name: 'Ama', last_name: 'Mensah', class_name: '5A' }
+  const student = { student_code: 'S1', first_name: 'Ama', last_name: 'Mensah' }
 
   it('confirms with the student name', () => {
     const m = describeCheckIn(
@@ -244,14 +245,14 @@ describe('feeding plans', () => {
     expect(parseRoster('student_id,first_name,last_name\nS1,A,B\n', plans).rows[0]).not.toHaveProperty('plan_code')
   })
 
-  const student = { student_code: 'S1', first_name: 'Ama', last_name: 'Mensah', class_name: '5A', plan_label: 'Once a day' }
+  const student = { student_code: 'S1', first_name: 'Ama', last_name: 'Mensah', plan_label: 'Once a day' }
 
   it('shows the plan with the confirmation', () => {
     const m = describeCheckIn(
       { status: 'ok', student, meal_period_label: 'Lunch', checked_in_at: '2026-10-19T12:00:00Z', served_count: 1 },
       'UTC',
     )
-    expect(m.subtitle).toBe('Class 5A · Once a day')
+    expect(m.subtitle).toBe('Once a day')
   })
 
   it('explains a meal period outside the plan', () => {
@@ -277,5 +278,25 @@ describe('feeding plans', () => {
     )
     expect(m.tone).toBe('warning')
     expect(m.detail).toBe('Twice a day: already had 2 of 2 meals today (Breakfast and Lunch). No meal was recorded.')
+  })
+})
+
+describe('meal chits', () => {
+  const plans = [
+    { code: 'once', chits: { lunch: 'blue', supper: 'blue' } },
+    { code: 'twice', chits: { lunch: 'pink', supper: 'yellow' } },
+  ]
+
+  it('finds the chit colour for a plan and meal period', () => {
+    expect(chitFor(plans, 'twice', 'lunch')).toBe('pink')
+    expect(chitFor(plans, 'twice', 'supper')).toBe('yellow')
+    expect(chitFor(plans, 'once', 'supper')).toBe('blue')
+    expect(CHIT_COLORS.pink.label).toBe('Pinkish red')
+  })
+
+  it('returns null when there is no plan or no chit', () => {
+    expect(chitFor(plans, null, 'lunch')).toBeNull()
+    expect(chitFor(plans, 'once', 'breakfast')).toBeNull()
+    expect(chitFor([{ code: 'x', chits: { lunch: 'tartan' } }], 'x', 'lunch')).toBeNull()
   })
 })

@@ -98,7 +98,7 @@ export default function AuditPage() {
 
       <Card className="overflow-hidden">
         {loading ? (
-          <div className="py-10 text-center text-teal-700">
+          <div className="py-10 text-center text-blue-700">
             <Spinner className="mx-auto h-8 w-8" />
           </div>
         ) : rows.length === 0 ? (

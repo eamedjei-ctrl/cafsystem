@@ -61,7 +61,7 @@ seed data.
      password protection if your plan includes it.
 4. **SCHOOL-SPECIFIC: time zone and name.** In the SQL Editor:
    ```sql
-   update public.app_settings set school_name = 'Your School', timezone = 'Africa/Accra';
+   update public.app_settings set school_name = 'Valley View University', timezone = 'Africa/Accra';
    ```
    Use the school's [IANA time zone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
    It decides which calendar day a check-in belongs to.

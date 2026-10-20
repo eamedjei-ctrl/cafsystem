@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useAuth } from '../lib/auth'
-import { PAGE_SIZE, countStudentsByPlan, importStudents, listClasses, listStudents, saveStudent } from '../lib/api'
+import { PAGE_SIZE, countStudentsByPlan, importStudents, listStudents, saveStudent } from '../lib/api'
 import { can } from '../lib/permissions'
 import { parseRoster, ROSTER_TEMPLATE } from '../lib/roster'
 import { downloadCsv } from '../lib/csv'
@@ -18,10 +18,8 @@ export default function StudentsPage() {
 
   const [search, setSearch] = useState('')
   const [debounced, setDebounced] = useState('')
-  const [className, setClassName] = useState('')
   const [includeInactive, setIncludeInactive] = useState(false)
   const [page, setPage] = useState(0)
-  const [classes, setClasses] = useState([])
   const [rows, setRows] = useState([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -43,7 +41,7 @@ export default function StudentsPage() {
     setError(null)
     try {
       const [{ data, count }, counts] = await Promise.all([
-        listStudents({ search: debounced, className, includeInactive, planCode }, page),
+        listStudents({ search: debounced, includeInactive, planCode }, page),
         countStudentsByPlan(plans, { includeInactive }),
       ])
       setRows(data)
@@ -54,30 +52,24 @@ export default function StudentsPage() {
     } finally {
       setLoading(false)
     }
-  }, [debounced, className, includeInactive, planCode, plans, page])
+  }, [debounced, includeInactive, planCode, plans, page])
 
   useEffect(() => {
     load()
   }, [load])
-
-  const refreshClasses = () => listClasses().then(setClasses).catch(() => {})
-  useEffect(() => {
-    refreshClasses()
-  }, [])
 
   const done = (message) => {
     setEditing(null)
     setImporting(false)
     setNotice(message)
     load()
-    refreshClasses()
   }
 
   return (
     <>
       <PageHeader
         title="Students"
-        description="Only the student ID, name, class, feeding plan and active status are stored."
+        description="Only the student ID, name, feeding plan and active status are stored."
         actions={
           canManage && (
             <>
@@ -90,7 +82,6 @@ export default function StudentsPage() {
                     student_code: '',
                     first_name: '',
                     last_name: '',
-                    class_name: '',
                     active: true,
                     plan_code: planCode && planCode !== 'none' ? planCode : '',
                   })
@@ -108,7 +99,6 @@ export default function StudentsPage() {
         {[
           { code: '', label: 'All students', count: Object.values(planCounts).reduce((a, b) => a + b, 0) },
           ...plans.map((p) => ({ code: p.code, label: p.label, count: planCounts[p.code] })),
-          { code: 'none', label: 'No plan', count: planCounts.none },
         ].map((tab) => {
           const selected = tab.code === planCode
           return (
@@ -121,8 +111,8 @@ export default function StudentsPage() {
                 setPage(0)
               }}
               className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold ring-1 transition-colors ${
-                selected ? 'bg-teal-700 text-white ring-teal-700' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
-              } ${tab.code === 'none' && tab.count > 0 && !selected ? 'text-amber-800 ring-amber-300' : ''}`}
+                selected ? 'bg-blue-700 text-white ring-blue-700' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'
+              }`}
             >
               {tab.label}
               <span className={`rounded-full px-2 py-0.5 text-xs ${selected ? 'bg-white/20' : 'bg-slate-100'}`}>
@@ -132,33 +122,10 @@ export default function StudentsPage() {
           )
         })}
       </div>
-      {planCode === 'none' && planCounts.none > 0 && (
-        <Alert tone="warning" className="mb-4">
-          These students have no feeding plan, so check-in does not restrict them. {canManage && 'Edit each one, or import a roster CSV with a plan column.'}
-        </Alert>
-      )}
 
       <Card className="mb-4 flex flex-wrap items-end gap-3 p-4">
         <Field label="Search" className="min-w-56 flex-1">
           {(id) => <input id={id} type="search" placeholder="Name or ID" className={inputClass} value={search} onChange={(e) => setSearch(e.target.value)} />}
-        </Field>
-        <Field label="Class">
-          {(id) => (
-            <select
-              id={id}
-              className={inputClass}
-              value={className}
-              onChange={(e) => {
-                setClassName(e.target.value)
-                setPage(0)
-              }}
-            >
-              <option value="">All classes</option>
-              {classes.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-          )}
         </Field>
         <label className="flex items-center gap-2 pb-2 text-sm">
           <input
@@ -183,11 +150,10 @@ export default function StudentsPage() {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <thead className="bg-blue-50 text-left text-xs font-semibold uppercase tracking-wide text-blue-900">
               <tr>
                 <th className="px-4 py-3">Student ID</th>
                 <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Class</th>
                 <th className="px-4 py-3">Feeding plan</th>
                 <th className="px-4 py-3">Status</th>
                 {canManage && <th className="px-4 py-3 text-right">Actions</th>}
@@ -196,13 +162,13 @@ export default function StudentsPage() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-teal-700">
+                  <td colSpan={5} className="px-4 py-10 text-center text-blue-700">
                     <Spinner className="mx-auto h-8 w-8" />
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-slate-500">
+                  <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
                     No students found.
                   </td>
                 </tr>
@@ -213,7 +179,6 @@ export default function StudentsPage() {
                     <td className="px-4 py-3 font-medium text-slate-900">
                       {s.last_name}, {s.first_name}
                     </td>
-                    <td className="px-4 py-3">{s.class_name}</td>
                     <td className="px-4 py-3">
                       {s.plan_code ? <Badge tone="blue">{planLabel(s.plan_code) ?? s.plan_code}</Badge> : <Badge tone="amber">No plan</Badge>}
                     </td>
@@ -291,23 +256,18 @@ function StudentDialog({ student, plans, onClose, onDone }) {
             {(id) => <input id={id} required maxLength={100} className={inputClass} value={form.last_name} onChange={(e) => set({ last_name: e.target.value })} />}
           </Field>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Class">
-            {(id) => <input id={id} maxLength={50} className={inputClass} value={form.class_name} onChange={(e) => set({ class_name: e.target.value })} />}
-          </Field>
-          <Field label="Feeding plan">
-            {(id) => (
-              <select id={id} className={inputClass} value={form.plan_code} onChange={(e) => set({ plan_code: e.target.value })}>
-                <option value="">No plan (not restricted)</option>
-                {plans.map((p) => (
-                  <option key={p.code} value={p.code}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            )}
-          </Field>
-        </div>
+        <Field label="Feeding plan">
+          {(id) => (
+            <select id={id} className={inputClass} value={form.plan_code} onChange={(e) => set({ plan_code: e.target.value })}>
+              <option value="">No plan (not restricted)</option>
+              {plans.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={form.active} onChange={(e) => set({ active: e.target.checked })} />
           <span>
@@ -372,7 +332,7 @@ function ImportDialog({ open, plans, onClose, onDone }) {
     <Modal open={open} onClose={onClose} title="Import student roster" wide>
       <div className="space-y-4 text-sm">
         <p className="text-slate-600">
-          Upload a CSV with the columns <code>student_id, first_name, last_name, class</code> and optionally{' '}
+          Upload a CSV with the columns <code>student_id, first_name, last_name</code> and optionally{' '}
           <code>plan</code> (<code>once</code>, <code>twice</code> or <code>thrice</code>) and <code>active</code> (yes/no). If
           the file has no <code>plan</code> column, existing plans are kept. Students are matched by student ID: existing students are updated, new ones are
           added. Students missing from the file are <strong>not</strong> removed. Deactivate them individually, or include
@@ -411,7 +371,6 @@ function ImportDialog({ open, plans, onClose, onDone }) {
                         <td className="px-3 py-1.5">
                           {r.last_name}, {r.first_name}
                         </td>
-                        <td className="px-3 py-1.5">{r.class_name}</td>
                         {'plan_code' in r && (
                           <td className="px-3 py-1.5">{plans.find((p) => p.code === r.plan_code)?.label ?? 'No plan'}</td>
                         )}

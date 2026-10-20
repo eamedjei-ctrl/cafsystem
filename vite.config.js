@@ -14,9 +14,9 @@ function reactShell({ title, entry }) {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#1e40af" />
     <meta name="robots" content="noindex, nofollow" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
     <title>${title}</title>
   </head>
   <body>
@@ -59,7 +59,7 @@ function reactShell({ title, entry }) {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), reactShell({ title: 'Cafeteria Check-in', entry: '/src/main.jsx' })],
+  plugins: [react(), tailwindcss(), reactShell({ title: 'Valley View University · Cafeteria Check-in', entry: '/src/main.jsx' })],
   test: {
     environment: 'node',
     include: ['src/**/*.test.{js,jsx}', 'tests/**/*.test.js'],

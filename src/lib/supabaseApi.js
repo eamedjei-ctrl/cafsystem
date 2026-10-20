@@ -57,19 +57,24 @@ export async function getFeedingPlans() {
   const rows = unwrap(
     await supabase
       .from('feeding_plans')
-      .select('code, label, meals_per_day, sort_order, feeding_plan_periods(meal_period)')
+      .select('code, label, meals_per_day, sort_order, feeding_plan_periods(meal_period, chit_color)')
       .order('sort_order'),
   )
-  return rows.map(({ feeding_plan_periods: fpp, ...plan }) => ({ ...plan, periods: fpp.map((p) => p.meal_period) }))
+  return rows.map(({ feeding_plan_periods: fpp, ...plan }) => ({
+    ...plan,
+    periods: fpp.map((p) => p.meal_period),
+    chits: Object.fromEntries(fpp.filter((p) => p.chit_color).map((p) => [p.meal_period, p.chit_color])),
+  }))
 }
 
-export async function setFeedingPlan({ code, label, mealsPerDay, periods }) {
+export async function setFeedingPlan({ code, label, mealsPerDay, periods, chits = {} }) {
   return unwrap(
     await supabase.rpc('set_feeding_plan', {
       p_code: code,
       p_label: label,
       p_meals_per_day: mealsPerDay,
       p_meal_periods: periods,
+      p_chit_colors: chits,
     }),
   )
 }
@@ -104,7 +109,6 @@ function recordsQuery(filters, select, opts) {
   if (filters.from) q = q.gte('service_date', filters.from)
   if (filters.to) q = q.lte('service_date', filters.to)
   if (filters.mealPeriod) q = q.eq('meal_period', filters.mealPeriod)
-  if (filters.className) q = q.eq('class_name', filters.className)
   if (filters.planCode === 'none') q = q.is('plan_code', null)
   else if (filters.planCode) q = q.eq('plan_code', filters.planCode)
   if (filters.status === 'active') q = q.eq('voided', false)
@@ -154,6 +158,20 @@ export async function fetchAllRecords(filters, onProgress) {
   throw new Error(`More than ${EXPORT_LIMIT.toLocaleString()} records match. Narrow the date range and try again.`)
 }
 
+/** Times fed per student between two dates: { data: [{ student_code, first_name, last_name, times_fed }], count }. */
+export async function studentMealCounts({ from, to, search }, page = 0, pageSize = PAGE_SIZE) {
+  const { rows, total } = unwrap(
+    await supabase.rpc('student_meal_counts', {
+      p_from: from,
+      p_to: to,
+      p_search: sanitizeSearch(search ?? ''),
+      p_limit: pageSize,
+      p_offset: page * pageSize,
+    }),
+  )
+  return { data: rows, count: total }
+}
+
 export async function correctRecord({ id, reason, mealPeriod = null, serviceDate = null, voided = null }) {
   return unwrap(
     await supabase.rpc('correct_meal_record', {
@@ -180,11 +198,10 @@ export async function addRecord({ studentCode, mealPeriod, serviceDate, reason }
 // ---------------------------------------------------------------------------
 // Students
 // ---------------------------------------------------------------------------
-export async function listStudents({ search, className, includeInactive, planCode }, page = 0) {
+export async function listStudents({ search, includeInactive, planCode }, page = 0) {
   const from = page * PAGE_SIZE
   let q = supabase.from('students').select('*', { count: 'exact' })
   if (!includeInactive) q = q.eq('active', true)
-  if (className) q = q.eq('class_name', className)
   if (planCode === 'none') q = q.is('plan_code', null)
   else if (planCode) q = q.eq('plan_code', planCode)
   if (search) q = applyNameSearch(q, search)
@@ -211,17 +228,11 @@ export async function countStudentsByPlan(plans, { includeInactive } = {}) {
   return Object.fromEntries(entries)
 }
 
-export async function listClasses() {
-  const rows = unwrap(await supabase.from('students').select('class_name').neq('class_name', '').limit(10000))
-  return [...new Set(rows.map((r) => r.class_name))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-}
-
 export async function saveStudent(student) {
   const fields = {
     student_code: student.student_code,
     first_name: student.first_name,
     last_name: student.last_name,
-    class_name: student.class_name,
     active: student.active,
     plan_code: student.plan_code || null,
   }

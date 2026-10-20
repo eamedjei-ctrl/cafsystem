@@ -1,6 +1,6 @@
-student_id,first_name,last_name,class,plan,active
-DEMO1001,Jordan,Example,4A,once,yes
-DEMO1002,Priya,Sample,4A,twice,yes
-DEMO1003,Kwesi,Placeholder,4B,thrice,yes
-DEMO1004,Lena,Testperson,5A,thrice,yes
-DEMO1005,Mateo,Demo,5B,once,no
+student_id,first_name,last_name,plan,active
+DEMO1001,Jordan,Example,once,yes
+DEMO1002,Priya,Sample,twice,yes
+DEMO1003,Kwesi,Placeholder,thrice,yes
+DEMO1004,Lena,Testperson,thrice,yes
+DEMO1005,Mateo,Demo,once,no

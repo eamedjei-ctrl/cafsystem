@@ -11,10 +11,9 @@ export function formatTime(iso, timeZone) {
   return new Intl.DateTimeFormat(undefined, { timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(iso))
 }
 
-/** "Class 5A · Twice a day" */
+/** "Twice a day" */
 export function studentSubtitle(student) {
-  const parts = [student.class_name && `Class ${student.class_name}`, student.plan_label].filter(Boolean)
-  return parts.length ? parts.join(' · ') : undefined
+  return student.plan_label || undefined
 }
 
 /** ["Breakfast", "Lunch"] -> "Breakfast and Lunch" */

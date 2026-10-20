@@ -166,9 +166,9 @@ describe('supervisor role', () => {
 describe('admin role', () => {
   it('can import a roster (upsert by student ID)', async () => {
     const rows = [
-      { student_code: 's1001', first_name: 'Ama', last_name: 'Mensah-Ofori', class_name: '5A' },
-      { student_code: 'S2001', first_name: 'Yaw', last_name: 'Asante', class_name: '4B' },
-      { student_code: 'S2002', first_name: 'Abena', last_name: 'Darko', class_name: '4B' },
+      { student_code: 's1001', first_name: 'Ama', last_name: 'Mensah-Ofori' },
+      { student_code: 'S2001', first_name: 'Yaw', last_name: 'Asante' },
+      { student_code: 'S2002', first_name: 'Abena', last_name: 'Darko' },
     ]
     const [{ r }] = await db.as(admin, `select public.import_students($1) as r`, [JSON.stringify(rows)])
     expect(r).toEqual({ total: 3, inserted: 2, updated: 1, unchanged: 0 })

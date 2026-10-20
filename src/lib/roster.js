@@ -3,17 +3,17 @@ import { isValidStudentCode, normalizeStudentCode } from './studentCode'
 
 /**
  * Roster CSV import. Expected header row (case-insensitive, any order):
- *   student_id, first_name, last_name, class, plan (optional), active (optional)
+ *   student_id, first_name, last_name, plan (optional), active (optional)
  * "plan" accepts a plan code or name (e.g. "twice", "Twice a day") or the
  * number of meals per day ("1", "2", "3"). Leave the column out to keep each
  * student's current plan; leave a cell blank to clear that student's plan.
- * Common alternative header names are accepted (see HEADER_ALIASES).
+ * Common alternative header names are accepted (see HEADER_ALIASES). Other
+ * columns (such as an old "class" column) are ignored.
  */
 const HEADER_ALIASES = {
   student_code: ['student_id', 'student id', 'student_code', 'id', 'studentid', 'student number', 'student_number'],
   first_name: ['first_name', 'firstname', 'first name', 'given_name', 'given name'],
   last_name: ['last_name', 'lastname', 'last name', 'surname', 'family_name', 'family name'],
-  class_name: ['class', 'class_name', 'classname', 'form', 'grade', 'homeroom'],
   active: ['active', 'status', 'enrolled'],
   plan_code: ['plan', 'plan_code', 'feeding_plan', 'feeding plan', 'meal_plan', 'meal plan', 'meals_per_day', 'meals per day', 'section'],
 }
@@ -73,7 +73,6 @@ export function parseRoster(text, plans = []) {
     const code = normalizeStudentCode(get(cells, 'student_code'))
     const first = get(cells, 'first_name')
     const last = get(cells, 'last_name')
-    const className = get(cells, 'class_name')
     const activeRaw = get(cells, 'active').toLowerCase()
     const planRaw = get(cells, 'plan_code')
     const planCode = index.plan_code === undefined ? undefined : resolvePlan(planRaw, plans)
@@ -83,7 +82,6 @@ export function parseRoster(text, plans = []) {
     if (!first) problems.push('first name is missing')
     if (!last) problems.push('last name is missing')
     if (first.length > 100 || last.length > 100) problems.push('name is longer than 100 characters')
-    if (className.length > 50) problems.push('class is longer than 50 characters')
 
     let active = true
     if (FALSE_VALUES.includes(activeRaw)) active = false
@@ -98,7 +96,7 @@ export function parseRoster(text, plans = []) {
 
     if (problems.length) errors.push({ line, message: problems.join('; ') })
     else {
-      const row = { student_code: code, first_name: first, last_name: last, class_name: className, active }
+      const row = { student_code: code, first_name: first, last_name: last, active }
       if (index.plan_code !== undefined) row.plan_code = planCode
       rows.push(row)
     }
@@ -109,4 +107,4 @@ export function parseRoster(text, plans = []) {
 }
 
 export const ROSTER_TEMPLATE =
-  'student_id,first_name,last_name,class,plan,active\r\nS0001,Jane,Example,5A,twice,yes\r\nS0002,John,Sample,5A,thrice,yes\r\n'
+  'student_id,first_name,last_name,plan,active\r\nS0001,Jane,Example,twice,yes\r\nS0002,John,Sample,thrice,yes\r\n'

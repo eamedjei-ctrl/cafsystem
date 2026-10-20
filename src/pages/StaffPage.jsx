@@ -74,7 +74,7 @@ export default function StaffPage() {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <thead className="bg-blue-50 text-left text-xs font-semibold uppercase tracking-wide text-blue-900">
               <tr>
                 <th className="px-4 py-3">Staff member</th>
                 <th className="px-4 py-3">Role</th>
@@ -85,7 +85,7 @@ export default function StaffPage() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-teal-700">
+                  <td colSpan={4} className="px-4 py-10 text-center text-blue-700">
                     <Spinner className="mx-auto h-8 w-8" />
                   </td>
                 </tr>
